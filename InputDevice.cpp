@@ -2,18 +2,17 @@
 #include <windows.h>
 #include "InputDevice.h"
 #include <iostream>
+#include <stdexcept>
 
 using namespace gfw;
 using namespace DirectX::SimpleMath;
 
 InputDevice::InputDevice(HWND hWnd)
 	: m_hWnd(hWnd)
-	, keys(new std::unordered_set<Keys>())
 {
 	if (m_hWnd == nullptr)
 	{
-		std::cerr << "ERROR: InputDevice requires a valid HWND" << std::endl;
-		return;
+		throw std::invalid_argument("InputDevice requires a valid HWND");
 	}
 
 	RAWINPUTDEVICE Rid[2];
@@ -31,32 +30,33 @@ InputDevice::InputDevice(HWND hWnd)
 	if (RegisterRawInputDevices(Rid, 2, sizeof(Rid[0])) == FALSE)
 	{
 		auto errorCode = GetLastError();
-		std::cout << "ERROR: Failed to register raw input devices. Error code: " << errorCode << std::endl;
+		std::cerr << "ERROR: Failed to register raw input devices. Error code: " << errorCode << std::endl;
 	}
 }
 
-InputDevice::~InputDevice()
-{
-	delete keys;
-}
+InputDevice::~InputDevice() noexcept = default;
 
-void InputDevice::OnKeyDown(KeyboardInputEventArgs args)
+void InputDevice::OnKeyDown(const KeyboardInputEventArgs& args)
 {
-	bool Break = args.Flags & 0x01;
+	constexpr USHORT LEFT_SHIFT_MAKE_CODE = 42;
+	constexpr USHORT RIGHT_SHIFT_MAKE_CODE = 54;
+	constexpr USHORT KEY_BREAK_FLAG = 0x01;
+
+	bool isBreak = args.Flags & KEY_BREAK_FLAG;
 
 	auto key = static_cast<Keys>(args.VKey);
 
-	if (args.MakeCode == 42) key = Keys::LeftShift;
-	if (args.MakeCode == 54) key = Keys::RightShift;
+	if (args.MakeCode == LEFT_SHIFT_MAKE_CODE) key = Keys::LeftShift;
+	if (args.MakeCode == RIGHT_SHIFT_MAKE_CODE) key = Keys::RightShift;
 	
-	if(Break) {
-		if(keys->count(key))	RemovePressedKey(key);
+	if(isBreak) {
+		keys.erase(key);
 	} else {
-		if (!keys->count(key))	AddPressedKey(key);
+		keys.insert(key);
 	}
 }
 
-void InputDevice::OnMouseMove(RawMouseEventArgs args)
+void InputDevice::OnMouseMove(const RawMouseEventArgs& args)
 {
 	if(args.ButtonFlags & static_cast<int>(MouseButtonFlags::LeftButtonDown))
 		AddPressedKey(Keys::LeftButton);
@@ -71,30 +71,32 @@ void InputDevice::OnMouseMove(RawMouseEventArgs args)
 	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::MiddleButtonUp))
 		RemovePressedKey(Keys::MiddleButton);
 
-	POINT p;
-	GetCursorPos(&p);
-	ScreenToClient(m_hWnd, &p);
-	
-	MousePosition	= Vector2(static_cast<float>(p.x), static_cast<float>(p.y));
-	MouseOffset		= Vector2(static_cast<float>(args.X), static_cast<float>(args.Y));
+	MouseOffset = Vector2(static_cast<float>(args.X), static_cast<float>(args.Y));
 	MouseWheelDelta = args.WheelDelta;
 
-	const MouseMoveEventArgs moveArgs = {MousePosition, MouseOffset, MouseWheelDelta};
-	
-	MouseMove.Broadcast(moveArgs);
+	if (MouseMove.GetSize() > 0)
+	{
+		POINT p;
+		GetCursorPos(&p);
+		ScreenToClient(m_hWnd, &p);
+		MousePosition = Vector2(static_cast<float>(p.x), static_cast<float>(p.y));
+
+		const MouseMoveEventArgs moveArgs = {MousePosition, MouseOffset, MouseWheelDelta};
+		MouseMove.Broadcast(moveArgs);
+	}
 }
 
 void InputDevice::AddPressedKey(Keys key)
 {
-	keys->insert(key);
+	keys.insert(key);
 }
 
 void InputDevice::RemovePressedKey(Keys key)
 {
-	keys->erase(key);
+	keys.erase(key);
 }
 
-bool InputDevice::IsKeyDown(Keys key)
+bool InputDevice::IsKeyDown(Keys key) const
 {
-	return keys->count(key);
+	return keys.find(key) != keys.end();
 }

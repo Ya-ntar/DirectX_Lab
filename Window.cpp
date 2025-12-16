@@ -4,6 +4,7 @@
 #include "InputDevice.h"
 #include "Delegates.h"
 #include <iostream>
+#include <vector>
 
 namespace gfw
 {
@@ -16,7 +17,7 @@ namespace gfw
 	{
 	}
 
-	Window::~Window()
+	Window::~Window() noexcept
 	{
 		Destroy();
 	}
@@ -49,8 +50,6 @@ namespace gfw
 			UnregisterWindowClass();
 			return false;
 		}
-
-		SetWindowLongPtr(m_hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
 		ShowWindow(m_hWnd, SW_SHOW);
 		UpdateWindow(m_hWnd);
@@ -88,7 +87,7 @@ namespace gfw
 			}
 		}
 
-		return static_cast<int>(msg.wParam);
+		return 0;
 	}
 
 	void Window::ProcessMessages()
@@ -113,7 +112,7 @@ namespace gfw
 
 		if (uMsg == WM_NCCREATE)
 		{
-			CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+			auto* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
 			pWindow = static_cast<Window*>(pCreate->lpCreateParams);
 			if (pWindow)
 			{
@@ -131,39 +130,34 @@ namespace gfw
 				
 				if (dwSize > 0)
 				{
-					LPBYTE lpb = new BYTE[dwSize];
-					if (lpb != nullptr)
+					std::vector<BYTE> buffer(dwSize);
+					if (GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
 					{
-						if (GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
+						auto* raw = reinterpret_cast<RAWINPUT*>(buffer.data());
+
+						if (raw->header.dwType == RIM_TYPEKEYBOARD)
 						{
-							RAWINPUT* raw = reinterpret_cast<RAWINPUT*>(lpb);
+							InputDevice::KeyboardInputEventArgs args{};
+							args.MakeCode = raw->data.keyboard.MakeCode;
+							args.Flags = raw->data.keyboard.Flags;
+							args.VKey = raw->data.keyboard.VKey;
+							args.Message = raw->data.keyboard.Message;
 
-							if (raw->header.dwType == RIM_TYPEKEYBOARD)
-							{
-								InputDevice::KeyboardInputEventArgs args;
-								args.MakeCode = raw->data.keyboard.MakeCode;
-								args.Flags = raw->data.keyboard.Flags;
-								args.VKey = raw->data.keyboard.VKey;
-								args.Message = raw->data.keyboard.Message;
-
-								pWindow->m_pInputDevice->OnKeyDown(args);
-							}
-							else if (raw->header.dwType == RIM_TYPEMOUSE)
-							{
-								InputDevice::RawMouseEventArgs args;
-								args.Mode = raw->data.mouse.usFlags;
-								args.ButtonFlags = raw->data.mouse.usButtonFlags;
-								args.ExtraInformation = static_cast<int>(raw->data.mouse.ulExtraInformation);
-								args.Buttons = static_cast<int>(raw->data.mouse.ulRawButtons);
-								args.WheelDelta = static_cast<short>(raw->data.mouse.usButtonData);
-								args.X = raw->data.mouse.lLastX;
-								args.Y = raw->data.mouse.lLastY;
-
-								pWindow->m_pInputDevice->OnMouseMove(args);
-							}
+							pWindow->m_pInputDevice->OnKeyDown(args);
 						}
+						else if (raw->header.dwType == RIM_TYPEMOUSE)
+						{
+							InputDevice::RawMouseEventArgs args{};
+							args.Mode = raw->data.mouse.usFlags;
+							args.ButtonFlags = raw->data.mouse.usButtonFlags;
+							args.ExtraInformation = static_cast<int>(raw->data.mouse.ulExtraInformation);
+							args.Buttons = static_cast<int>(raw->data.mouse.ulRawButtons);
+							args.WheelDelta = static_cast<short>(raw->data.mouse.usButtonData);
+							args.X = raw->data.mouse.lLastX;
+							args.Y = raw->data.mouse.lLastY;
 
-						delete[] lpb;
+							pWindow->m_pInputDevice->OnMouseMove(args);
+						}
 					}
 				}
 				return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -198,19 +192,20 @@ namespace gfw
 		wc.cbSize = sizeof(WNDCLASSEXW);
 		wc.style = CS_HREDRAW | CS_VREDRAW;
 		wc.lpfnWndProc = WindowProc;
-		wc.cbClsExtra = 0;
-		wc.cbWndExtra = 0;
 		wc.hInstance = m_hInstance;
 		wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
 		wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
 		wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
-		wc.lpszMenuName = nullptr;
 		wc.lpszClassName = m_ClassName.c_str();
 		wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
 
 		if (!RegisterClassExW(&wc))
 		{
-			std::wcerr << L"Failed to register window class. Error: " << GetLastError() << std::endl;
+			DWORD error = GetLastError();
+			if (error != ERROR_CLASS_ALREADY_EXISTS)
+			{
+				std::wcerr << L"Failed to register window class. Error: " << error << std::endl;
+			}
 		}
 	}
 

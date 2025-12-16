@@ -40,7 +40,12 @@ namespace gfw
 
 	public:
 		Window();
-		~Window();
+		~Window() noexcept;
+
+		Window(const Window&) = delete;
+		Window& operator=(const Window&) = delete;
+		Window(Window&&) = delete;
+		Window& operator=(Window&&) = delete;
 
 		bool Create(const WindowDesc& desc);
 		void Destroy();
@@ -59,4 +64,3 @@ namespace gfw
 		int GetHeight() const;
 	};
 }
-

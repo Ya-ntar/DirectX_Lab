@@ -6,13 +6,13 @@
 #include <unordered_set>
 
 #ifndef DIRECTX_SIMPLEMATH_H
-namespace DirectX { namespace SimpleMath {
+namespace DirectX::SimpleMath {
 	struct Vector2 {
 		float x, y;
 		Vector2() : x(0), y(0) {}
 		Vector2(float x_, float y_) : x(x_), y(y_) {}
 	};
-}}
+}
 #endif
 
 namespace gfw
@@ -23,35 +23,33 @@ namespace gfw
 	{
 		friend class gfw::Window;
 
-		std::unordered_set<Keys>* keys;
-		HWND m_hWnd;
-
 	public:
 
 		struct MouseMoveEventArgs
 		{
 			DirectX::SimpleMath::Vector2 Position;
 			DirectX::SimpleMath::Vector2 Offset;
-			int WheelDelta;
+			int WheelDelta{};
 		};
-
-		DirectX::SimpleMath::Vector2 MousePosition{};
-		DirectX::SimpleMath::Vector2 MouseOffset{};
-		int MouseWheelDelta = 0;
 
 		MulticastDelegate<const MouseMoveEventArgs&> MouseMove;
 
-	public:
+		DirectX::SimpleMath::Vector2 GetMousePosition() const { return MousePosition; }
+		DirectX::SimpleMath::Vector2 GetMouseOffset() const { return MouseOffset; }
+		int GetMouseWheelDelta() const { return MouseWheelDelta; }
 
 		explicit InputDevice(HWND hWnd);
-		~InputDevice();
+		~InputDevice() noexcept;
 
+		InputDevice(const InputDevice&) = delete;
+		InputDevice& operator=(const InputDevice&) = delete;
+		InputDevice(InputDevice&&) = delete;
+		InputDevice& operator=(InputDevice&&) = delete;
 
 		void AddPressedKey(Keys key);
 		void RemovePressedKey(Keys key);
-		bool IsKeyDown(Keys key);
+		bool IsKeyDown(Keys key) const;
 
-	public:
 		struct KeyboardInputEventArgs {
 			USHORT MakeCode;
 			USHORT Flags;
@@ -92,7 +90,14 @@ namespace gfw
 			int Y;
 		};
 
-		void OnKeyDown(KeyboardInputEventArgs args);
-		void OnMouseMove(RawMouseEventArgs args);
+		void OnKeyDown(const KeyboardInputEventArgs& args);
+		void OnMouseMove(const RawMouseEventArgs& args);
+
+	private:
+		std::unordered_set<Keys> keys;
+		HWND m_hWnd;
+		DirectX::SimpleMath::Vector2 MousePosition{};
+		DirectX::SimpleMath::Vector2 MouseOffset{};
+		int MouseWheelDelta = 0;
 	};
 }
