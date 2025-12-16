@@ -14,6 +14,8 @@ namespace gfw
 		, m_ClassName(L"DirectXWindowClass")
 		, m_IsRunning(false)
 		, m_pInputDevice(nullptr)
+		, m_ClientWidth(0)
+		, m_ClientHeight(0)
 	{
 	}
 
@@ -46,9 +48,22 @@ namespace gfw
 
 		if (!m_hWnd)
 		{
-			std::wcerr << L"Failed to create window. Error: " << GetLastError() << std::endl;
+			DWORD error = GetLastError();
+			std::wcerr << L"Failed to create window. Error: " << error << std::endl;
 			UnregisterWindowClass();
 			return false;
+		}
+
+		RECT clientRect;
+		if (GetClientRect(m_hWnd, &clientRect))
+		{
+			m_ClientWidth = clientRect.right - clientRect.left;
+			m_ClientHeight = clientRect.bottom - clientRect.top;
+		}
+		else
+		{
+			m_ClientWidth = desc.Width;
+			m_ClientHeight = desc.Height;
 		}
 
 		ShowWindow(m_hWnd, SW_SHOW);
@@ -74,14 +89,23 @@ namespace gfw
 		MSG msg = {};
 		while (m_IsRunning)
 		{
-			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-			{
-				if (msg.message == WM_QUIT)
-				{
-					m_IsRunning = false;
-					return static_cast<int>(msg.wParam);
-				}
 
+			BOOL bRet = GetMessage(&msg, nullptr, 0, 0);
+			
+			if (bRet == 0) // WM_QUIT
+			{
+				m_IsRunning = false;
+				return static_cast<int>(msg.wParam);
+			}
+			else if (bRet == -1) 
+			{
+				DWORD error = GetLastError();
+				std::wcerr << L"GetMessage failed. Error: " << error << std::endl;
+				m_IsRunning = false;
+				return -1;
+			}
+			else
+			{
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
@@ -126,12 +150,14 @@ namespace gfw
 			if (uMsg == WM_INPUT && pWindow->m_pInputDevice)
 			{
 				UINT dwSize = 0;
-				GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
+				UINT result = GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
 				
-				if (dwSize > 0)
+				if (result == 0 && dwSize > 0)
 				{
 					std::vector<BYTE> buffer(dwSize);
-					if (GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
+					result = GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER));
+					
+					if (result != UINT(-1) && result == dwSize)
 					{
 						auto* raw = reinterpret_cast<RAWINPUT*>(buffer.data());
 
@@ -160,8 +186,10 @@ namespace gfw
 						}
 					}
 				}
-				return DefWindowProc(hwnd, uMsg, wParam, lParam);
+
+				return 0;
 			}
+
 
 			if (uMsg == WM_CLOSE)
 			{
@@ -170,12 +198,26 @@ namespace gfw
 				return 0;
 			}
 
+
 			if (uMsg == WM_DESTROY)
 			{
 				pWindow->m_IsRunning = false;
 				PostQuitMessage(0);
 				return 0;
 			}
+
+
+			if (uMsg == WM_SIZE)
+			{
+				RECT clientRect;
+				if (GetClientRect(hwnd, &clientRect))
+				{
+					pWindow->m_ClientWidth = clientRect.right - clientRect.left;
+					pWindow->m_ClientHeight = clientRect.bottom - clientRect.top;
+				}
+				return 0;
+			}
+
 		}
 
 		return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -219,22 +261,28 @@ namespace gfw
 
 	int Window::GetWidth() const
 	{
-		RECT rect;
-		if (GetClientRect(m_hWnd, &rect))
+		if (m_hWnd)
 		{
-			return rect.right - rect.left;
+			RECT rect;
+			if (GetClientRect(m_hWnd, &rect))
+			{
+				return rect.right - rect.left;
+			}
 		}
-		return m_Desc.Width;
+		return m_ClientWidth > 0 ? m_ClientWidth : m_Desc.Width;
 	}
 
 	int Window::GetHeight() const
 	{
-		RECT rect;
-		if (GetClientRect(m_hWnd, &rect))
+		if (m_hWnd)
 		{
-			return rect.bottom - rect.top;
+			RECT rect;
+			if (GetClientRect(m_hWnd, &rect))
+			{
+				return rect.bottom - rect.top;
+			}
 		}
-		return m_Desc.Height;
+		return m_ClientHeight > 0 ? m_ClientHeight : m_Desc.Height;
 	}
 }
 

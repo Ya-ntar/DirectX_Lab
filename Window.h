@@ -31,6 +31,8 @@ namespace gfw
 		WindowDesc m_Desc;
 		bool m_IsRunning = false;
 		InputDevice* m_pInputDevice = nullptr;
+		int m_ClientWidth = 0;
+		int m_ClientHeight = 0;
 
 		static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 		static Window* GetWindowFromHWND(HWND hwnd);

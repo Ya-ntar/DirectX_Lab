@@ -2,6 +2,7 @@
 #include <iostream>
 #include "Window.h"
 #include "InputDevice.h"
+#include "Keys.h"
 
 using namespace gfw;
 
@@ -16,7 +17,7 @@ int main()
 
     if (!window.Create(desc))
     {
-        std::cerr << "Failed to create window!" << std::endl;
+        std::wcerr << L"Failed to create window!" << std::endl;
         return -1;
     }
 
@@ -25,16 +26,27 @@ int main()
         InputDevice inputDevice(window.GetHWND());
         window.SetInputDevice(&inputDevice);
 
+
         inputDevice.MouseMove.AddLambda([](const InputDevice::MouseMoveEventArgs& args) {
-            std::cout << "Mouse Position: (" << args.Position.x << ", " << args.Position.y << ")" << std::endl;
+            std::wcout << L"Mouse Position: (" << args.Position.x << L", " << args.Position.y << L")";
+            std::wcout << L" | Offset: (" << args.Offset.x << L", " << args.Offset.y << L")";
+            if (args.WheelDelta != 0)
+            {
+                std::wcout << L" | Wheel: " << args.WheelDelta;
+            }
+            std::wcout << std::endl;
         });
+
+        std::wcout << L"Window created successfully. Size: " << window.GetWidth() 
+                   << L"x" << window.GetHeight() << std::endl;
+        std::wcout << L"Move mouse and press keys to test input. Press ESC to exit." << std::endl;
 
         int exitCode = window.Run();
         return exitCode;
     }
     catch (const std::exception& e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::wcerr << L"Error: " << e.what() << std::endl;
         return -1;
     }
 }

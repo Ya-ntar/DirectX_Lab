@@ -29,8 +29,9 @@ InputDevice::InputDevice(HWND hWnd)
 
 	if (RegisterRawInputDevices(Rid, 2, sizeof(Rid[0])) == FALSE)
 	{
-		auto errorCode = GetLastError();
-		std::cerr << "ERROR: Failed to register raw input devices. Error code: " << errorCode << std::endl;
+		DWORD errorCode = GetLastError();
+		std::wcerr << L"ERROR: Failed to register raw input devices. Error code: " << errorCode << std::endl;
+		throw std::runtime_error("Failed to register raw input devices");
 	}
 }
 
@@ -40,25 +41,54 @@ void InputDevice::OnKeyDown(const KeyboardInputEventArgs& args)
 {
 	constexpr USHORT LEFT_SHIFT_MAKE_CODE = 42;
 	constexpr USHORT RIGHT_SHIFT_MAKE_CODE = 54;
+	constexpr USHORT LEFT_CTRL_MAKE_CODE = 29;
+	constexpr USHORT RIGHT_CTRL_MAKE_CODE = 285; // 0x11D
+	constexpr USHORT LEFT_ALT_MAKE_CODE = 56;
+	constexpr USHORT RIGHT_ALT_MAKE_CODE = 312; // 0x138
 	constexpr USHORT KEY_BREAK_FLAG = 0x01;
 
-	bool isBreak = args.Flags & KEY_BREAK_FLAG;
+	bool isBreak = (args.Flags & KEY_BREAK_FLAG);
 
-	auto key = static_cast<Keys>(args.VKey);
+	Keys key = static_cast<Keys>(args.VKey);
 
-	if (args.MakeCode == LEFT_SHIFT_MAKE_CODE) key = Keys::LeftShift;
-	if (args.MakeCode == RIGHT_SHIFT_MAKE_CODE) key = Keys::RightShift;
+	if (args.MakeCode == LEFT_SHIFT_MAKE_CODE)
+	{
+		key = Keys::LeftShift;
+	}
+	else if (args.MakeCode == RIGHT_SHIFT_MAKE_CODE)
+	{
+		key = Keys::RightShift;
+	}
+	else if (args.MakeCode == LEFT_CTRL_MAKE_CODE)
+	{
+		key = Keys::LeftControl;
+	}
+	else if (args.MakeCode == RIGHT_CTRL_MAKE_CODE)
+	{
+		key = Keys::RightControl;
+	}
+	else if (args.MakeCode == LEFT_ALT_MAKE_CODE)
+	{
+		key = Keys::LeftAlt;
+	}
+	else if (args.MakeCode == RIGHT_ALT_MAKE_CODE)
+	{
+		key = Keys::RightAlt;
+	}
 	
-	if(isBreak) {
+	if (isBreak)
+	{
 		keys.erase(key);
-	} else {
+	}
+	else
+	{
 		keys.insert(key);
 	}
 }
 
 void InputDevice::OnMouseMove(const RawMouseEventArgs& args)
 {
-	if(args.ButtonFlags & static_cast<int>(MouseButtonFlags::LeftButtonDown))
+	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::LeftButtonDown))
 		AddPressedKey(Keys::LeftButton);
 	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::LeftButtonUp))
 		RemovePressedKey(Keys::LeftButton);
@@ -70,17 +100,46 @@ void InputDevice::OnMouseMove(const RawMouseEventArgs& args)
 		AddPressedKey(Keys::MiddleButton);
 	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::MiddleButtonUp))
 		RemovePressedKey(Keys::MiddleButton);
+	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::Button4Down))
+		AddPressedKey(Keys::MouseButtonX1);
+	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::Button4Up))
+		RemovePressedKey(Keys::MouseButtonX1);
+	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::Button5Down))
+		AddPressedKey(Keys::MouseButtonX2);
+	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::Button5Up))
+		RemovePressedKey(Keys::MouseButtonX2);
 
-	MouseOffset = Vector2(static_cast<float>(args.X), static_cast<float>(args.Y));
-	MouseWheelDelta = args.WheelDelta;
+	if (args.X != 0 || args.Y != 0)
+	{
+		MouseOffset = Vector2(static_cast<float>(args.X), static_cast<float>(args.Y));
+	}
+	else
+	{
+		MouseOffset = Vector2(0.0f, 0.0f);
+	}
+
+	if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::MouseWheel))
+	{
+		MouseWheelDelta = args.WheelDelta;
+	}
+	else if (args.ButtonFlags & static_cast<int>(MouseButtonFlags::Hwheel))
+	{
+		MouseWheelDelta = args.WheelDelta;
+	}
+	else
+	{
+		MouseWheelDelta = 0;
+	}
+
+	POINT p;
+	if (GetCursorPos(&p))
+	{
+		ScreenToClient(m_hWnd, &p);
+		MousePosition = Vector2(static_cast<float>(p.x), static_cast<float>(p.y));
+	}
 
 	if (MouseMove.GetSize() > 0)
 	{
-		POINT p;
-		GetCursorPos(&p);
-		ScreenToClient(m_hWnd, &p);
-		MousePosition = Vector2(static_cast<float>(p.x), static_cast<float>(p.y));
-
 		const MouseMoveEventArgs moveArgs = {MousePosition, MouseOffset, MouseWheelDelta};
 		MouseMove.Broadcast(moveArgs);
 	}
