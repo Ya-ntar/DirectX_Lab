@@ -3,9 +3,18 @@ project(DX12Test LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(DX12Test main.cpp)
+add_executable(DX12Test main.cpp
+        Keys.h
+        InputDevice.h
+        InputDevice.cpp
+        Window.h
+        Window.cpp
+        Delegates.h
+        Delegates.cpp
+        Exports.h)
 
-# Линкуем библиотеки Windows SDK (MSVC сам знает их путь)
+target_compile_definitions(DX12Test PRIVATE GAMEFRAMEWORK_STATIC)
+
 target_link_libraries(DX12Test PRIVATE
         d3d12.lib
         dxgi.lib
