@@ -8,281 +8,276 @@
 
 namespace gfw
 {
-	Window::Window()
-		: m_hWnd(nullptr)
-		, m_hInstance(nullptr)
-		, m_ClassName(L"DirectXWindowClass")
-		, m_IsRunning(false)
-		, m_pInputDevice(nullptr)
-		, m_ClientWidth(0)
-		, m_ClientHeight(0)
-	{
-	}
+    Window::Window()
+        : handle_(nullptr)
+        , instance_(nullptr)
+        , class_name_(L"DirectXWindowClass")
+        , is_running_(false)
+        , input_device_(nullptr)
+        , client_width_(0)
+        , client_height_(0)
+    {
+    }
 
 	Window::~Window() noexcept
 	{
 		Destroy();
 	}
 
-	bool Window::Create(const WindowDesc& desc)
-	{
-		m_Desc = desc;
-		m_hInstance = desc.HInstance ? desc.HInstance : GetModuleHandle(nullptr);
+    bool Window::Create(const WindowDesc& desc)
+    {
+        desc_ = desc;
+        instance_ = desc.instance ? desc.instance : GetModuleHandle(nullptr);
 
-		RegisterWindowClass();
+        RegisterWindowClass();
 
-		m_hWnd = CreateWindowExW(
-			desc.ExStyle,
-			m_ClassName.c_str(),
-			desc.Title.c_str(),
-			desc.Style,
-			desc.X,
-			desc.Y,
-			desc.Width,
-			desc.Height,
-			nullptr,
-			nullptr,
-			m_hInstance,
-			this
-		);
+        handle_ = CreateWindowExW(
+            desc.ex_style,
+            class_name_.c_str(),
+            desc.title.c_str(),
+            desc.style,
+            desc.x,
+            desc.y,
+            desc.width,
+            desc.height,
+            nullptr,
+            nullptr,
+            instance_,
+            this
+        );
 
-		if (!m_hWnd)
-		{
-			DWORD error = GetLastError();
-			std::wcerr << L"Failed to create window. Error: " << error << std::endl;
-			UnregisterWindowClass();
-			return false;
-		}
+        if (!handle_)
+        {
+            DWORD error = GetLastError();
+            std::wcerr << L"Failed to create window. Error: " << error << std::endl;
+            UnregisterWindowClass();
+            return false;
+        }
 
-		RECT clientRect;
-		if (GetClientRect(m_hWnd, &clientRect))
-		{
-			m_ClientWidth = clientRect.right - clientRect.left;
-			m_ClientHeight = clientRect.bottom - clientRect.top;
-		}
-		else
-		{
-			m_ClientWidth = desc.Width;
-			m_ClientHeight = desc.Height;
-		}
+        RECT client_rect;
+        if (GetClientRect(handle_, &client_rect))
+        {
+            client_width_ = client_rect.right - client_rect.left;
+            client_height_ = client_rect.bottom - client_rect.top;
+        }
+        else
+        {
+            client_width_ = desc.width;
+            client_height_ = desc.height;
+        }
 
-		ShowWindow(m_hWnd, SW_SHOW);
-		UpdateWindow(m_hWnd);
+        ShowWindow(handle_, SW_SHOW);
+        UpdateWindow(handle_);
 
-		m_IsRunning = true;
-		return true;
-	}
+        is_running_ = true;
+        return true;
+    }
 
-	void Window::Destroy()
-	{
-		if (m_hWnd)
-		{
-			DestroyWindow(m_hWnd);
-			m_hWnd = nullptr;
-		}
-		UnregisterWindowClass();
-		m_IsRunning = false;
-	}
+    void Window::Destroy()
+    {
+        if (handle_)
+        {
+            DestroyWindow(handle_);
+            handle_ = nullptr;
+        }
+        UnregisterWindowClass();
+        is_running_ = false;
+    }
 
-	int Window::Run()
-	{
-		MSG msg = {};
-		while (m_IsRunning)
-		{
+    int Window::Run()
+    {
+        MSG msg = {};
+        while (is_running_)
+        {
+            BOOL result = GetMessage(&msg, nullptr, 0, 0);
+            
+            if (result == 0)
+            {
+                is_running_ = false;
+                return static_cast<int>(msg.wParam);
+            }
+            else if (result == -1)
+            {
+                DWORD error = GetLastError();
+                std::wcerr << L"GetMessage failed. Error: " << error << std::endl;
+                is_running_ = false;
+                return -1;
+            }
+            else
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+        }
 
-			BOOL bRet = GetMessage(&msg, nullptr, 0, 0);
-			
-			if (bRet == 0) // WM_QUIT
-			{
-				m_IsRunning = false;
-				return static_cast<int>(msg.wParam);
-			}
-			else if (bRet == -1) 
-			{
-				DWORD error = GetLastError();
-				std::wcerr << L"GetMessage failed. Error: " << error << std::endl;
-				m_IsRunning = false;
-				return -1;
-			}
-			else
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
+        return 0;
+    }
 
-		return 0;
-	}
+    void Window::ProcessMessages()
+    {
+        MSG msg = {};
+        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+            {
+                is_running_ = false;
+                return;
+            }
 
-	void Window::ProcessMessages()
-	{
-		MSG msg = {};
-		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-		{
-			if (msg.message == WM_QUIT)
-			{
-				m_IsRunning = false;
-				return;
-			}
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
 
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-	}
+    LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        Window* window = GetWindowFromHandle(hwnd);
 
-	LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-	{
-		Window* pWindow = GetWindowFromHWND(hwnd);
+        if (uMsg == WM_NCCREATE)
+        {
+            auto* create_struct = reinterpret_cast<CREATESTRUCT*>(lParam);
+            window = static_cast<Window*>(create_struct->lpCreateParams);
+            if (window)
+            {
+                SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+            }
+            return window ? TRUE : FALSE;
+        }
 
-		if (uMsg == WM_NCCREATE)
-		{
-			auto* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
-			pWindow = static_cast<Window*>(pCreate->lpCreateParams);
-			if (pWindow)
-			{
-				SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pWindow));
-			}
-			return pWindow ? TRUE : FALSE;
-		}
+        if (window)
+        {
+            if (uMsg == WM_INPUT && window->input_device_)
+            {
+                UINT size = 0;
+                UINT result = GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+                
+                if (result == 0 && size > 0)
+                {
+                    std::vector<BYTE> buffer(size);
+                    result = GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, buffer.data(), &size, sizeof(RAWINPUTHEADER));
+                    
+                    if (result != UINT(-1) && result == size)
+                    {
+                        auto* raw = reinterpret_cast<RAWINPUT*>(buffer.data());
 
-		if (pWindow)
-		{
-			if (uMsg == WM_INPUT && pWindow->m_pInputDevice)
-			{
-				UINT dwSize = 0;
-				UINT result = GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
-				
-				if (result == 0 && dwSize > 0)
-				{
-					std::vector<BYTE> buffer(dwSize);
-					result = GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER));
-					
-					if (result != UINT(-1) && result == dwSize)
-					{
-						auto* raw = reinterpret_cast<RAWINPUT*>(buffer.data());
+                        if (raw->header.dwType == RIM_TYPEKEYBOARD)
+                        {
+                            InputDevice::KeyboardInputEventArgs args{};
+                            args.make_code = raw->data.keyboard.MakeCode;
+                            args.flags = raw->data.keyboard.Flags;
+                            args.vkey = raw->data.keyboard.VKey;
+                            args.message = raw->data.keyboard.Message;
 
-						if (raw->header.dwType == RIM_TYPEKEYBOARD)
-						{
-							InputDevice::KeyboardInputEventArgs args{};
-							args.MakeCode = raw->data.keyboard.MakeCode;
-							args.Flags = raw->data.keyboard.Flags;
-							args.VKey = raw->data.keyboard.VKey;
-							args.Message = raw->data.keyboard.Message;
+                            window->input_device_->OnKeyDown(args);
+                        }
+                        else if (raw->header.dwType == RIM_TYPEMOUSE)
+                        {
+                            InputDevice::RawMouseEventArgs args{};
+                            args.mode = raw->data.mouse.usFlags;
+                            args.button_flags = raw->data.mouse.usButtonFlags;
+                            args.extra_information = static_cast<int>(raw->data.mouse.ulExtraInformation);
+                            args.buttons = static_cast<int>(raw->data.mouse.ulRawButtons);
+                            args.wheel_delta = static_cast<short>(raw->data.mouse.usButtonData);
+                            args.x = raw->data.mouse.lLastX;
+                            args.y = raw->data.mouse.lLastY;
 
-							pWindow->m_pInputDevice->OnKeyDown(args);
-						}
-						else if (raw->header.dwType == RIM_TYPEMOUSE)
-						{
-							InputDevice::RawMouseEventArgs args{};
-							args.Mode = raw->data.mouse.usFlags;
-							args.ButtonFlags = raw->data.mouse.usButtonFlags;
-							args.ExtraInformation = static_cast<int>(raw->data.mouse.ulExtraInformation);
-							args.Buttons = static_cast<int>(raw->data.mouse.ulRawButtons);
-							args.WheelDelta = static_cast<short>(raw->data.mouse.usButtonData);
-							args.X = raw->data.mouse.lLastX;
-							args.Y = raw->data.mouse.lLastY;
+                            window->input_device_->OnMouseMove(args);
+                        }
+                    }
+                }
 
-							pWindow->m_pInputDevice->OnMouseMove(args);
-						}
-					}
-				}
+                return 0;
+            }
 
-				return 0;
-			}
+            if (uMsg == WM_CLOSE)
+            {
+                window->is_running_ = false;
+                DestroyWindow(hwnd);
+                return 0;
+            }
 
+            if (uMsg == WM_DESTROY)
+            {
+                window->is_running_ = false;
+                PostQuitMessage(0);
+                return 0;
+            }
 
-			if (uMsg == WM_CLOSE)
-			{
-				pWindow->m_IsRunning = false;
-				DestroyWindow(hwnd);
-				return 0;
-			}
+            if (uMsg == WM_SIZE)
+            {
+                RECT client_rect;
+                if (GetClientRect(hwnd, &client_rect))
+                {
+                    window->client_width_ = client_rect.right - client_rect.left;
+                    window->client_height_ = client_rect.bottom - client_rect.top;
+                }
+                return 0;
+            }
+        }
 
+        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
 
-			if (uMsg == WM_DESTROY)
-			{
-				pWindow->m_IsRunning = false;
-				PostQuitMessage(0);
-				return 0;
-			}
+    Window* Window::GetWindowFromHandle(HWND hwnd)
+    {
+        return reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+    }
 
+    void Window::RegisterWindowClass()
+    {
+        WNDCLASSEXW wc = {};
+        wc.cbSize = sizeof(WNDCLASSEXW);
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = WindowProc;
+        wc.hInstance = instance_;
+        wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+        wc.lpszClassName = class_name_.c_str();
+        wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
 
-			if (uMsg == WM_SIZE)
-			{
-				RECT clientRect;
-				if (GetClientRect(hwnd, &clientRect))
-				{
-					pWindow->m_ClientWidth = clientRect.right - clientRect.left;
-					pWindow->m_ClientHeight = clientRect.bottom - clientRect.top;
-				}
-				return 0;
-			}
+        if (!RegisterClassExW(&wc))
+        {
+            DWORD error = GetLastError();
+            if (error != ERROR_CLASS_ALREADY_EXISTS)
+            {
+                std::wcerr << L"Failed to register window class. Error: " << error << std::endl;
+            }
+        }
+    }
 
-		}
+    void Window::UnregisterWindowClass()
+    {
+        if (instance_)
+        {
+            UnregisterClassW(class_name_.c_str(), instance_);
+        }
+    }
 
-		return DefWindowProc(hwnd, uMsg, wParam, lParam);
-	}
+    int Window::GetWidth() const
+    {
+        if (handle_)
+        {
+            RECT rect;
+            if (GetClientRect(handle_, &rect))
+            {
+                return rect.right - rect.left;
+            }
+        }
+        return client_width_ > 0 ? client_width_ : desc_.width;
+    }
 
-	Window* Window::GetWindowFromHWND(HWND hwnd)
-	{
-		return reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-	}
-
-	void Window::RegisterWindowClass()
-	{
-		WNDCLASSEXW wc = {};
-		wc.cbSize = sizeof(WNDCLASSEXW);
-		wc.style = CS_HREDRAW | CS_VREDRAW;
-		wc.lpfnWndProc = WindowProc;
-		wc.hInstance = m_hInstance;
-		wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-		wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-		wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
-		wc.lpszClassName = m_ClassName.c_str();
-		wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
-
-		if (!RegisterClassExW(&wc))
-		{
-			DWORD error = GetLastError();
-			if (error != ERROR_CLASS_ALREADY_EXISTS)
-			{
-				std::wcerr << L"Failed to register window class. Error: " << error << std::endl;
-			}
-		}
-	}
-
-	void Window::UnregisterWindowClass()
-	{
-		if (m_hInstance)
-		{
-			UnregisterClassW(m_ClassName.c_str(), m_hInstance);
-		}
-	}
-
-	int Window::GetWidth() const
-	{
-		if (m_hWnd)
-		{
-			RECT rect;
-			if (GetClientRect(m_hWnd, &rect))
-			{
-				return rect.right - rect.left;
-			}
-		}
-		return m_ClientWidth > 0 ? m_ClientWidth : m_Desc.Width;
-	}
-
-	int Window::GetHeight() const
-	{
-		if (m_hWnd)
-		{
-			RECT rect;
-			if (GetClientRect(m_hWnd, &rect))
-			{
-				return rect.bottom - rect.top;
-			}
-		}
-		return m_ClientHeight > 0 ? m_ClientHeight : m_Desc.Height;
-	}
+    int Window::GetHeight() const
+    {
+        if (handle_)
+        {
+            RECT rect;
+            if (GetClientRect(handle_, &rect))
+            {
+                return rect.bottom - rect.top;
+            }
+        }
+        return client_height_ > 0 ? client_height_ : desc_.height;
+    }
 }
 

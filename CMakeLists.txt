@@ -11,7 +11,11 @@ add_executable(DX12Test main.cpp
         Window.cpp
         Delegates.h
         Delegates.cpp
-        Exports.h)
+        Exports.h
+        Timer.h
+        Timer.cpp
+        Framework.h
+        Framework.cpp)
 
 target_compile_definitions(DX12Test PRIVATE GAMEFRAMEWORK_STATIC)
 

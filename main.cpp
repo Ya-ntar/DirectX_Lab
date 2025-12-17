@@ -3,49 +3,57 @@
 #include "Window.h"
 #include "InputDevice.h"
 #include "Keys.h"
+#include "Framework.h"
+#include "Timer.h"
 
 using namespace gfw;
 
-int main()
-{
+int main() {
     Window window;
     Window::WindowDesc desc;
-    desc.Title = L"DirectX 12 Window";
-    desc.Width = 1280;
-    desc.Height = 720;
-    desc.HInstance = GetModuleHandle(nullptr);
+    desc.title = L"DirectX 12 Window";
+    desc.width = 1280;
+    desc.height = 720;
+    desc.instance = GetModuleHandle(nullptr);
 
-    if (!window.Create(desc))
-    {
+    if (!window.Create(desc)) {
         std::wcerr << L"Failed to create window!" << std::endl;
         return -1;
     }
 
-    try
-    {
-        InputDevice inputDevice(window.GetHWND());
-        window.SetInputDevice(&inputDevice);
+    try {
+        InputDevice input_device(window.GetHandle());
+        window.SetInputDevice(&input_device);
 
+        Framework framework;
+        if (!framework.Initialize(&window)) {
+            std::wcerr << L"Failed to initialize Framework!" << std::endl;
+            return -1;
+        }
 
-        inputDevice.MouseMove.AddLambda([](const InputDevice::MouseMoveEventArgs& args) {
-            std::wcout << L"Mouse Position: (" << args.Position.x << L", " << args.Position.y << L")";
-            std::wcout << L" | Offset: (" << args.Offset.x << L", " << args.Offset.y << L")";
-            if (args.WheelDelta != 0)
-            {
-                std::wcout << L" | Wheel: " << args.WheelDelta;
-            }
-            std::wcout << std::endl;
-        });
+        Timer timer;
+        timer.Reset();
 
-        std::wcout << L"Window created successfully. Size: " << window.GetWidth() 
+        std::wcout << L"Window created successfully. Size: " << window.GetWidth()
                    << L"x" << window.GetHeight() << std::endl;
-        std::wcout << L"Move mouse and press keys to test input. Press ESC to exit." << std::endl;
+        std::wcout << L"DirectX 12 initialized. Press ESC to exit." << std::endl;
 
-        int exitCode = window.Run();
-        return exitCode;
+        while (window.IsRunning()) {
+            window.ProcessMessages();
+
+            timer.Tick();
+
+            framework.BeginFrame();
+
+            framework.ClearRenderTarget(0.39f, 0.58f, 0.93f, 1.0f);
+
+            framework.EndFrame();
+        }
+
+        framework.Shutdown();
+        return 0;
     }
-    catch (const std::exception& e)
-    {
+    catch (const std::exception &e) {
         std::wcerr << L"Error: " << e.what() << std::endl;
         return -1;
     }
