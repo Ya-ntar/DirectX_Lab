@@ -1,12 +1,21 @@
 #include <windows.h>
 #include <iostream>
-#include "Window.h"
-#include "InputDevice.h"
-#include "Keys.h"
-#include "Framework.h"
-#include "Timer.h"
+#include "framework/Window.h"
+#include "framework/InputDevice.h"
+#include "framework/Keys.h"
+#include "framework/Framework.h"
+#include "framework/Timer.h"
+#include "CubeMesh.h"
+#include "MeshData.h"
+#include <memory>
 
 using namespace gfw;
+
+void RenderCubeAtCenter(Framework &framework, const MeshBuffers &cube_buffers, double total_time) {
+    const auto t = static_cast<float>(total_time);
+    DirectX::XMMATRIX world = DirectX::XMMatrixRotationY(t) * DirectX::XMMatrixRotationX(t * 0.5f);
+    framework.RenderMesh(cube_buffers, world, total_time);
+}
 
 int main() {
     Window window;
@@ -31,6 +40,15 @@ int main() {
             return -1;
         }
 
+
+        CubeMesh cube_mesh = CubeMesh::CreateUnit();
+        std::unique_ptr<MeshBuffers> cube_buffers = framework.CreateMeshBuffers(cube_mesh.ToMeshData());
+
+        if (!cube_buffers) {
+            std::wcerr << L"Failed to create cube buffers!" << std::endl;
+            return -1;
+        }
+
         Timer timer;
         timer.Reset();
 
@@ -46,6 +64,8 @@ int main() {
             framework.BeginFrame();
 
             framework.ClearRenderTarget(0.39f, 0.58f, 0.93f, 1.0f);
+
+            RenderCubeAtCenter(framework, *cube_buffers, timer.GetTotalTime());
 
             framework.EndFrame();
         }
