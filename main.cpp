@@ -133,7 +133,6 @@ int main() {
             DirectX::XMVECTOR right = DirectX::XMVector3Cross(up, forwardVec);
             right = DirectX::XMVector3Normalize(right);
 
-            // Update camera target based on position and new forward
             DirectX::XMVECTOR pos = DirectX::XMLoadFloat3(&camera.position);
             
             DirectX::XMVECTOR movement = DirectX::XMVectorZero();
@@ -168,8 +167,7 @@ int main() {
 
             framework.ClearRenderTarget(0.39f, 0.58f, 0.93f, 1.0f);
 
-            // Render Sponza (or Cube fallback)
-            // Use Identity world matrix for Sponza
+          
             DirectX::XMMATRIX world = DirectX::XMMatrixIdentity();
             framework.RenderMesh(*meshBuffers, world, timer.GetTotalTime());
 
