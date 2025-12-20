@@ -146,5 +146,7 @@ namespace gfw {
 
         [[nodiscard]] const SceneState &GetSceneState() const { return scene_state_; }
 
+        void SetCamera(const Camera& camera) { scene_state_.camera = camera; }
+
     };
 }
