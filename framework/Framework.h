@@ -1,6 +1,7 @@
 #pragma once
 
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 
 #include <DirectXMath.h>
 #include <d3dcompiler.h>
@@ -24,6 +25,22 @@
 using Microsoft::WRL::ComPtr;
 
 namespace gfw {
+    struct Texture2D {
+        ComPtr<ID3D12Resource> resource;
+        D3D12_GPU_DESCRIPTOR_HANDLE srv_gpu = {};
+    };
+
+    struct RenderObject {
+        const MeshBuffers *mesh = nullptr;
+        DirectX::XMFLOAT4X4 world = {};
+        DirectX::XMFLOAT4 albedo = {0.85f, 0.25f, 0.25f, 1.0f};
+        std::shared_ptr<Texture2D> texture = {};
+
+        RenderObject() {
+            DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixIdentity());
+        }
+    };
+
     class GAMEFRAMEWORK_API Framework {
     private:
         static constexpr UINT FRAME_COUNT = 2;
@@ -36,6 +53,7 @@ namespace gfw {
         ComPtr<IDXGISwapChain3> swap_chain_;
         ComPtr<ID3D12DescriptorHeap> rtv_heap_;
         ComPtr<ID3D12DescriptorHeap> dsv_heap_;
+        ComPtr<ID3D12DescriptorHeap> srv_heap_;
         ComPtr<ID3D12CommandAllocator> command_allocator_[FRAME_COUNT];
         ComPtr<ID3D12GraphicsCommandList> command_list_;
         ComPtr<ID3D12Fence> fence_;
@@ -54,6 +72,12 @@ namespace gfw {
 
         ComPtr<ID3D12Resource> constant_buffer_;
         std::uint8_t *constant_buffer_mapped_ = nullptr;
+
+        SceneState scene_state_ = {};
+        std::vector<std::shared_ptr<Texture2D>> textures_;
+        std::shared_ptr<Texture2D> default_texture_;
+        UINT srv_descriptor_size_ = 0;
+        UINT next_srv_index_ = 0;
 
         D3D12_VIEWPORT viewport_{};
         D3D12_RECT scissor_rect_{};
@@ -74,6 +98,13 @@ namespace gfw {
         bool CreateCubeBuffers();
 
         bool CreateConstantBuffer();
+
+        bool CreateSrvHeap(UINT descriptor_count);
+
+        std::shared_ptr<Texture2D> CreateSolidTexture(std::uint32_t rgba8);
+
+        void RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
+                            D3D12_GPU_DESCRIPTOR_HANDLE texture_srv);
 
     public:
         Framework();
@@ -104,8 +135,13 @@ namespace gfw {
 
         std::unique_ptr<MeshBuffers> CreateMeshBuffers(const MeshData &mesh_data);
 
+        std::shared_ptr<Texture2D> CreateSolidTexture(const DirectX::XMFLOAT4 &color);
+
         void RenderMesh(const MeshBuffers &buffers, const DirectX::XMMATRIX &world_matrix, double total_time);
 
         void RenderMesh(const MeshBuffers &buffers, const SceneConstants &constants);
+
+        void RenderObject(const ::gfw::RenderObject &object, double total_time);
+
     };
 }

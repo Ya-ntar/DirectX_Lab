@@ -1,5 +1,6 @@
 
 #include <iterator>
+#include <algorithm>
 
 #include "Framework.h"
 
@@ -28,6 +29,9 @@ cbuffer SceneCB : register(b0)
     float4 ambientColor;
     float4 albedo;
 };
+
+Texture2D baseColorTex : register(t0);
+SamplerState baseColorSampler : register(s0);
 
 struct VSInput
 {
@@ -60,18 +64,33 @@ float4 PSMain(VSOutput input) : SV_TARGET
     float3 V = normalize(cameraPos.xyz - input.posW);
 
     float ndotl = max(dot(N, L), 0.0f);
-    float3 diffuse = albedo.rgb * lightColor.rgb * ndotl;
+    float2 uv = frac(input.posW.xz * 0.25f);
+    float3 tex = baseColorTex.Sample(baseColorSampler, uv).rgb;
+    float3 diffuse = (albedo.rgb * tex) * lightColor.rgb * ndotl;
 
     float3 R = reflect(-L, N);
     float specAngle = max(dot(R, V), 0.0f);
     float spec = pow(specAngle, max(lightDirShininess.w, 1.0f));
     float3 specular = lightColor.rgb * spec;
 
-    float3 ambient = ambientColor.rgb * albedo.rgb;
+    float3 ambient = ambientColor.rgb * (albedo.rgb * tex);
     float3 color = ambient + diffuse + specular;
     return float4(color, 1.0f);
 }
 )";
+
+        std::uint32_t PackRGBA8(const DirectX::XMFLOAT4 &color) {
+            auto clamp01 = [](float v) {
+                return std::max(0.0f, std::min(1.0f, v));
+            };
+
+            const std::uint32_t r = static_cast<std::uint32_t>(clamp01(color.x) * 255.0f + 0.5f);
+            const std::uint32_t g = static_cast<std::uint32_t>(clamp01(color.y) * 255.0f + 0.5f);
+            const std::uint32_t b = static_cast<std::uint32_t>(clamp01(color.z) * 255.0f + 0.5f);
+            const std::uint32_t a = static_cast<std::uint32_t>(clamp01(color.w) * 255.0f + 0.5f);
+
+            return (a << 24u) | (b << 16u) | (g << 8u) | r;
+        }
 
         D3D12_HEAP_PROPERTIES HeapProperties(D3D12_HEAP_TYPE type) {
             D3D12_HEAP_PROPERTIES props = {};
@@ -276,6 +295,18 @@ float4 PSMain(VSOutput input) : SV_TARGET
             return false;
         }
 
+        srv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        next_srv_index_ = 0;
+
+        if (!CreateSrvHeap(64)) {
+            return false;
+        }
+
+        default_texture_ = CreateSolidTexture(0xffffffffu);
+        if (!default_texture_) {
+            return false;
+        }
+
         std::wcout << L"Framework initialized successfully!" << std::endl;
         return true;
     }
@@ -295,6 +326,9 @@ float4 PSMain(VSOutput input) : SV_TARGET
         constant_buffer_.Reset();
         index_buffer_.Reset();
         vertex_buffer_.Reset();
+        default_texture_.reset();
+        textures_.clear();
+        srv_heap_.Reset();
         depth_stencil_.Reset();
         pipeline_state_.Reset();
         root_signature_.Reset();
@@ -371,36 +405,19 @@ float4 PSMain(VSOutput input) : SV_TARGET
 
         const float t = static_cast<float>(total_time);
 
-        SceneConstants constants = {};
-
         const DirectX::XMMATRIX world = DirectX::XMMatrixRotationY(t) * DirectX::XMMatrixRotationX(t * 0.5f);
-        const DirectX::XMVECTOR eye = DirectX::XMVectorSet(0.0f, 1.5f, -5.0f, 1.0f);
-        const DirectX::XMVECTOR at = DirectX::XMVectorZero();
-        const DirectX::XMVECTOR up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-        const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(eye, at, up);
         const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-        const DirectX::XMMATRIX proj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XMConvertToRadians(60.0f), aspect,
-                                                                         0.1f, 100.0f);
+        const SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect);
 
-        DirectX::XMStoreFloat4x4(&constants.world, world);
-        DirectX::XMStoreFloat4x4(&constants.view, view);
-        DirectX::XMStoreFloat4x4(&constants.proj, proj);
+        MeshBuffers cube_buffers = {};
+        cube_buffers.vertex_buffer = vertex_buffer_;
+        cube_buffers.index_buffer = index_buffer_;
+        cube_buffers.vertex_buffer_view = vertex_buffer_view_;
+        cube_buffers.index_buffer_view = index_buffer_view_;
+        cube_buffers.index_count = index_count_;
+        cube_buffers.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-        constants.light_dir_shininess = DirectX::XMFLOAT4(0.35f, 0.9f, -0.25f, 64.0f);
-        constants.camera_pos = DirectX::XMFLOAT4(0.0f, 1.5f, -5.0f, 1.0f);
-        constants.light_color = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-        constants.ambient_color = DirectX::XMFLOAT4(0.15f, 0.15f, 0.15f, 1.0f);
-        constants.albedo = DirectX::XMFLOAT4(0.85f, 0.25f, 0.25f, 1.0f);
-
-        std::memcpy(constant_buffer_mapped_, &constants, sizeof(constants));
-
-        command_list_->SetGraphicsRootSignature(root_signature_.Get());
-        command_list_->SetPipelineState(pipeline_state_.Get());
-        command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        command_list_->IASetVertexBuffers(0, 1, &vertex_buffer_view_);
-        command_list_->IASetIndexBuffer(&index_buffer_view_);
-        command_list_->SetGraphicsRootConstantBufferView(0, constant_buffer_->GetGPUVirtualAddress());
-        command_list_->DrawIndexedInstanced(index_count_, 1, 0, 0, 0);
+        RenderMesh(cube_buffers, constants);
     }
 
     void Framework::EndFrame() {
@@ -545,17 +562,44 @@ float4 PSMain(VSOutput input) : SV_TARGET
             return false;
         }
 
-        D3D12_ROOT_PARAMETER root_param = {};
-        root_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        root_param.Descriptor.ShaderRegister = 0;
-        root_param.Descriptor.RegisterSpace = 0;
-        root_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        D3D12_DESCRIPTOR_RANGE srv_range = {};
+        srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        srv_range.NumDescriptors = 1;
+        srv_range.BaseShaderRegister = 0;
+        srv_range.RegisterSpace = 0;
+        srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+        D3D12_ROOT_PARAMETER root_params[2] = {};
+        root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        root_params[0].Descriptor.ShaderRegister = 0;
+        root_params[0].Descriptor.RegisterSpace = 0;
+        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+        root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        root_params[1].DescriptorTable.NumDescriptorRanges = 1;
+        root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+        root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        D3D12_STATIC_SAMPLER_DESC sampler = {};
+        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        sampler.MipLODBias = 0.0f;
+        sampler.MaxAnisotropy = 1;
+        sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        sampler.MinLOD = 0.0f;
+        sampler.MaxLOD = D3D12_FLOAT32_MAX;
+        sampler.ShaderRegister = 0;
+        sampler.RegisterSpace = 0;
+        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
         D3D12_ROOT_SIGNATURE_DESC root_desc = {};
-        root_desc.NumParameters = 1;
-        root_desc.pParameters = &root_param;
-        root_desc.NumStaticSamplers = 0;
-        root_desc.pStaticSamplers = nullptr;
+        root_desc.NumParameters = static_cast<UINT>(std::size(root_params));
+        root_desc.pParameters = root_params;
+        root_desc.NumStaticSamplers = 1;
+        root_desc.pStaticSamplers = &sampler;
         root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
         ComPtr<ID3DBlob> signature_blob;
@@ -670,82 +714,7 @@ float4 PSMain(VSOutput input) : SV_TARGET
         return true;
     }
 
-    bool Framework::CreateCubeBuffers() {
-        cube_mesh_ = CubeMesh::CreateUnit();
-        if (cube_mesh_.GetVertexData().empty() || cube_mesh_.GetIndices().empty()) {
-            return false;
-        }
 
-        MeshData cube_data = cube_mesh_.ToMeshData();
-
-        auto cube_buffers_ = CreateMeshBuffers(cube_data);
-
-        if (!cube_buffers_) {
-            std::wcerr << L"Failed to create cube mesh buffers!" << std::endl;
-            return false;
-        }
-
-        return true;
-    }
-
-    /* bool Framework::CreateCubeBuffers() {
-         cube_mesh_ = CubeMesh::CreateUnit();
-         if (cube_mesh_.GetVertexData().empty() || cube_mesh_.GetIndices().empty()) {
-             return false;
-         }
-
-         index_count_ = static_cast<UINT>(cube_mesh_.GetIndices().size());
-
-         const UINT vb_size = static_cast<UINT>(cube_mesh_.GetVertexData().size());
-         const UINT ib_size = static_cast<UINT>(cube_mesh_.GetIndices().size() * sizeof(std::uint16_t));
-
-         const D3D12_HEAP_PROPERTIES heap_props = HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
-         const D3D12_RESOURCE_DESC vb_desc = BufferDesc(vb_size);
-         if (FAILED(device_->CreateCommittedResource(
-                 &heap_props,
-                 D3D12_HEAP_FLAG_NONE,
-                 &vb_desc,
-                 D3D12_RESOURCE_STATE_GENERIC_READ,
-                 nullptr,
-                 IID_PPV_ARGS(&vertex_buffer_)))) {
-             return false;
-         }
-
-         void* vb_mapped = nullptr;
-         if (FAILED(vertex_buffer_->Map(0, nullptr, &vb_mapped))) {
-             return false;
-         }
-         std::memcpy(vb_mapped, cube_mesh_.GetVertexData().data(), vb_size);
-         vertex_buffer_->Unmap(0, nullptr);
-
-         vertex_buffer_view_.BufferLocation = vertex_buffer_->GetGPUVirtualAddress();
-         vertex_buffer_view_.SizeInBytes = vb_size;
-         vertex_buffer_view_.StrideInBytes = static_cast<UINT>(cube_mesh_.GetVertexStride());
-
-         const D3D12_RESOURCE_DESC ib_desc = BufferDesc(ib_size);
-         if (FAILED(device_->CreateCommittedResource(
-                 &heap_props,
-                 D3D12_HEAP_FLAG_NONE,
-                 &ib_desc,
-                 D3D12_RESOURCE_STATE_GENERIC_READ,
-                 nullptr,
-                 IID_PPV_ARGS(&index_buffer_)))) {
-             return false;
-         }
-
-         void* ib_mapped = nullptr;
-         if (FAILED(index_buffer_->Map(0, nullptr, &ib_mapped))) {
-             return false;
-         }
-         std::memcpy(ib_mapped, cube_mesh_.GetIndices().data(), ib_size);
-         index_buffer_->Unmap(0, nullptr);
-
-         index_buffer_view_.BufferLocation = index_buffer_->GetGPUVirtualAddress();
-         index_buffer_view_.SizeInBytes = ib_size;
-         index_buffer_view_.Format = DXGI_FORMAT_R16_UINT;
-
-         return true;
-     }*/
     std::unique_ptr<MeshBuffers> Framework::CreateMeshBuffers(const MeshData &mesh_data) {
         if (mesh_data.vertex_data.empty()) {
             std::wcerr << L"CreateMeshBuffers: Empty vertex data!" << std::endl;
@@ -816,40 +785,163 @@ float4 PSMain(VSOutput input) : SV_TARGET
         return buffers;
     }
 
-    void Framework::RenderMesh(const MeshBuffers &buffers, const DirectX::XMMATRIX &world_matrix, double total_time) {
-        if (!pipeline_state_ || !root_signature_ || !constant_buffer_) {
-            return;
+    bool Framework::CreateSrvHeap(UINT descriptor_count) {
+        D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+        desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        desc.NumDescriptors = descriptor_count;
+        desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        desc.NodeMask = 0;
+
+        if (FAILED(device_->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&srv_heap_)))) {
+            std::wcerr << L"Failed to create SRV descriptor heap!" << std::endl;
+            return false;
         }
 
-        SceneConstants constants = {};
-        DirectX::XMStoreFloat4x4(&constants.world, world_matrix);
-
-        const DirectX::XMVECTOR eye = DirectX::XMVectorSet(0.0f, 1.5f, -5.0f, 1.0f);
-        const DirectX::XMVECTOR at = DirectX::XMVectorZero();
-        const DirectX::XMVECTOR up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-        const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(eye, at, up);
-        DirectX::XMStoreFloat4x4(&constants.view, view);
-
-        const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-        const DirectX::XMMATRIX proj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XMConvertToRadians(60.0f), aspect,
-                                                                         0.1f, 100.0f);
-        DirectX::XMStoreFloat4x4(&constants.proj, proj);
-
-        constants.light_dir_shininess = DirectX::XMFLOAT4(0.35f, 0.9f, -0.25f, 64.0f);
-        constants.camera_pos = DirectX::XMFLOAT4(0.0f, 1.5f, -5.0f, 1.0f);
-        constants.light_color = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-        constants.ambient_color = DirectX::XMFLOAT4(0.15f, 0.15f, 0.15f, 1.0f);
-        constants.albedo = DirectX::XMFLOAT4(0.85f, 0.25f, 0.25f, 1.0f);
-
-        RenderMesh(buffers, constants);
+        return true;
     }
 
-    void Framework::RenderMesh(const MeshBuffers &buffers, const SceneConstants &constants) {
-        if (!pipeline_state_ || !root_signature_ || !constant_buffer_) {
-            return;
+    std::shared_ptr<Texture2D> Framework::CreateSolidTexture(std::uint32_t rgba8) {
+        if (!device_ || !srv_heap_) {
+            return {};
         }
 
+        const UINT heap_capacity = srv_heap_->GetDesc().NumDescriptors;
+        if (next_srv_index_ >= heap_capacity) {
+            return {};
+        }
+
+        D3D12_RESOURCE_DESC tex_desc = {};
+        tex_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        tex_desc.Alignment = 0;
+        tex_desc.Width = 1;
+        tex_desc.Height = 1;
+        tex_desc.DepthOrArraySize = 1;
+        tex_desc.MipLevels = 1;
+        tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        tex_desc.SampleDesc.Count = 1;
+        tex_desc.SampleDesc.Quality = 0;
+        tex_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        tex_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+        const D3D12_HEAP_PROPERTIES default_heap_props = HeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+
+        ComPtr<ID3D12Resource> resource;
+        HRESULT hr = device_->CreateCommittedResource(
+                &default_heap_props,
+                D3D12_HEAP_FLAG_NONE,
+                &tex_desc,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                nullptr,
+                IID_PPV_ARGS(&resource));
+        if (FAILED(hr)) {
+            std::wcerr << L"Failed to create texture resource! hr=0x" << std::hex << hr << std::dec << std::endl;
+            return {};
+        }
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT num_rows = 0;
+        UINT64 row_size_in_bytes = 0;
+        UINT64 upload_size = 0;
+        device_->GetCopyableFootprints(&tex_desc, 0, 1, 0, &footprint, &num_rows, &row_size_in_bytes, &upload_size);
+
+        const D3D12_HEAP_PROPERTIES upload_heap_props = HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
+        const D3D12_RESOURCE_DESC upload_desc = BufferDesc(upload_size);
+
+        ComPtr<ID3D12Resource> upload;
+        hr = device_->CreateCommittedResource(
+                &upload_heap_props,
+                D3D12_HEAP_FLAG_NONE,
+                &upload_desc,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                nullptr,
+                IID_PPV_ARGS(&upload));
+        if (FAILED(hr)) {
+            std::wcerr << L"Failed to create texture upload buffer! hr=0x" << std::hex << hr << std::dec << std::endl;
+            return {};
+        }
+
+        void *mapped = nullptr;
+        hr = upload->Map(0, nullptr, &mapped);
+        if (FAILED(hr)) {
+            std::wcerr << L"Failed to map texture upload buffer! hr=0x" << std::hex << hr << std::dec << std::endl;
+            return {};
+        }
+        std::memset(mapped, 0, static_cast<size_t>(upload_size));
+        std::memcpy(mapped, &rgba8, sizeof(rgba8));
+        upload->Unmap(0, nullptr);
+
+        if (FAILED(command_allocator_[frame_index_]->Reset())) {
+            return {};
+        }
+
+        if (FAILED(command_list_->Reset(command_allocator_[frame_index_].Get(), nullptr))) {
+            return {};
+        }
+
+        D3D12_TEXTURE_COPY_LOCATION dst = {};
+        dst.pResource = resource.Get();
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        dst.SubresourceIndex = 0;
+
+        D3D12_TEXTURE_COPY_LOCATION src = {};
+        src.pResource = upload.Get();
+        src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        src.PlacedFootprint = footprint;
+
+        command_list_->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = resource.Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        command_list_->ResourceBarrier(1, &barrier);
+
+        if (FAILED(command_list_->Close())) {
+            return {};
+        }
+
+        ID3D12CommandList *lists[] = {command_list_.Get()};
+        command_queue_->ExecuteCommandLists(static_cast<UINT>(std::size(lists)), lists);
+        WaitForPreviousFrame();
+
+        const UINT descriptor_index = next_srv_index_++;
+
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = srv_heap_->GetCPUDescriptorHandleForHeapStart();
+        cpu_handle.ptr += static_cast<SIZE_T>(descriptor_index) * srv_descriptor_size_;
+
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = srv_heap_->GetGPUDescriptorHandleForHeapStart();
+        gpu_handle.ptr += static_cast<UINT64>(descriptor_index) * srv_descriptor_size_;
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srv_desc.Texture2D.MostDetailedMip = 0;
+        srv_desc.Texture2D.MipLevels = 1;
+        srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+        device_->CreateShaderResourceView(resource.Get(), &srv_desc, cpu_handle);
+
+        auto texture = std::make_shared<Texture2D>();
+        texture->resource = resource;
+        texture->srv_gpu = gpu_handle;
+        textures_.push_back(texture);
+        return texture;
+    }
+
+    std::shared_ptr<Texture2D> Framework::CreateSolidTexture(const DirectX::XMFLOAT4 &color) {
+        return CreateSolidTexture(PackRGBA8(color));
+    }
+
+    void Framework::RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
+                                   D3D12_GPU_DESCRIPTOR_HANDLE texture_srv) {
         std::memcpy(constant_buffer_mapped_, &constants, sizeof(constants));
+
+        ID3D12DescriptorHeap *heaps[] = {srv_heap_.Get()};
+        command_list_->SetDescriptorHeaps(static_cast<UINT>(std::size(heaps)), heaps);
 
         command_list_->SetGraphicsRootSignature(root_signature_.Get());
         command_list_->SetPipelineState(pipeline_state_.Get());
@@ -857,6 +949,7 @@ float4 PSMain(VSOutput input) : SV_TARGET
         command_list_->IASetVertexBuffers(0, 1, &buffers.vertex_buffer_view);
 
         command_list_->SetGraphicsRootConstantBufferView(0, constant_buffer_->GetGPUVirtualAddress());
+        command_list_->SetGraphicsRootDescriptorTable(1, texture_srv);
 
         if (buffers.index_buffer) {
             command_list_->IASetIndexBuffer(&buffers.index_buffer_view);
@@ -864,5 +957,46 @@ float4 PSMain(VSOutput input) : SV_TARGET
         } else {
             command_list_->DrawInstanced(buffers.index_count, 1, 0, 0);
         }
+    }
+
+
+    void Framework::RenderMesh(const MeshBuffers &buffers, const DirectX::XMMATRIX &world_matrix, double total_time) {
+        if (!pipeline_state_ || !root_signature_ || !constant_buffer_) {
+            return;
+        }
+        (void) total_time;
+
+        const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
+        const SceneConstants constants = MakeSceneConstants(world_matrix, scene_state_, aspect);
+        RenderMesh(buffers, constants);
+    }
+
+    void Framework::RenderMesh(const MeshBuffers &buffers, const SceneConstants &constants) {
+        if (!pipeline_state_ || !root_signature_ || !constant_buffer_ || !srv_heap_ || !default_texture_) {
+            return;
+        }
+        RenderMeshImpl(buffers, constants, default_texture_->srv_gpu);
+    }
+
+    void Framework::RenderObject(const ::gfw::RenderObject &object, double total_time) {
+        (void) total_time;
+
+        if (!object.mesh) {
+            return;
+        }
+
+        if (!pipeline_state_ || !root_signature_ || !constant_buffer_ || !srv_heap_ || !default_texture_) {
+            return;
+        }
+
+        const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
+        const DirectX::XMMATRIX world = DirectX::XMLoadFloat4x4(&object.world);
+        SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect);
+        constants.albedo = object.albedo;
+
+        const D3D12_GPU_DESCRIPTOR_HANDLE texture_srv =
+                object.texture ? object.texture->srv_gpu : default_texture_->srv_gpu;
+
+        RenderMeshImpl(*object.mesh, constants, texture_srv);
     }
 }

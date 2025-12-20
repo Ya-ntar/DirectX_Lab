@@ -20,8 +20,9 @@ namespace gfw {
 
         void Tick();
 
-        double GetDeltaTime() const { return delta_time_; }
+        [[nodiscard]] double GetDeltaTime() const { return delta_time_; }
 
-        double GetTotalTime() const { return total_time_; }
+
+        [[nodiscard]] double GetTotalTime() const { return total_time_; }
     };
 }
