@@ -135,7 +135,7 @@ namespace gfw {
         buffers->vertex_buffer_view.StrideInBytes = mesh_data.vertex_stride;
 
         if (!mesh_data.indices.empty()) {
-            const UINT ib_size = static_cast<UINT>(mesh_data.indices.size() * sizeof(std::uint16_t));
+            const UINT ib_size = static_cast<UINT>(mesh_data.indices.size() * sizeof(std::uint32_t));
             const D3D12_RESOURCE_DESC ib_desc = detail::BufferDesc(ib_size);
 
             if (FAILED(device_->CreateCommittedResource(
@@ -159,7 +159,7 @@ namespace gfw {
 
             buffers->index_buffer_view.BufferLocation = buffers->index_buffer->GetGPUVirtualAddress();
             buffers->index_buffer_view.SizeInBytes = ib_size;
-            buffers->index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+            buffers->index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
             buffers->index_count = static_cast<UINT>(mesh_data.indices.size());
         } else {
             buffers->index_count = mesh_data.vertex_count;

@@ -12,7 +12,7 @@ namespace gfw {
         std::vector<std::uint8_t> vertex_data;
         std::uint32_t vertex_stride = 0;
         std::uint32_t vertex_count = 0;
-        std::vector<std::uint16_t> indices;
+        std::vector<std::uint32_t> indices;
         D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     };
 
