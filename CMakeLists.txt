@@ -31,7 +31,12 @@ add_executable(DX12Test main.cpp
         framework/Timer.h
         framework/Timer.cpp
         framework/Framework.h
-        framework/Framework.cpp
+        framework/FrameworkInternal.h
+        framework/Framework.Init.cpp
+        framework/Framework.Frame.cpp
+        framework/Framework.Pipeline.cpp
+        framework/Framework.Resources.cpp
+        framework/Framework.Render.cpp
         CubeMesh.h
         CubeMesh.cpp
         MeshData.h
