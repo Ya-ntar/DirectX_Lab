@@ -14,6 +14,8 @@ namespace gfw {
         DirectX::XMFLOAT4 light_color;
         DirectX::XMFLOAT4 ambient_color;
         DirectX::XMFLOAT4 albedo;
+        float time_seconds = 0.0f;
+        DirectX::XMFLOAT3 _padding0 = {0.0f, 0.0f, 0.0f};
     };
 
     struct Camera {
@@ -72,7 +74,8 @@ namespace gfw {
     [[nodiscard]] inline SceneConstants MakeSceneConstants(
             const DirectX::XMMATRIX &world,
             const SceneState &scene,
-            float aspect) {
+            float aspect,
+            float time_seconds) {
         SceneConstants constants = {};
 
         DirectX::XMStoreFloat4x4(&constants.world, world);
@@ -84,6 +87,7 @@ namespace gfw {
         constants.light_color = scene.light.color;
         constants.ambient_color = scene.light.ambient;
         constants.albedo = scene.material.albedo;
+        constants.time_seconds = time_seconds;
 
         return constants;
     }

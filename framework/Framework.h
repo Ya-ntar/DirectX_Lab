@@ -60,6 +60,7 @@ namespace gfw {
 
         ComPtr<ID3D12RootSignature> root_signature_;
         ComPtr<ID3D12PipelineState> pipeline_state_;
+        ComPtr<ID3D12PipelineState> pipeline_state_transparent_;
 
         ComPtr<ID3D12Resource> depth_stencil_;
 
@@ -104,7 +105,7 @@ namespace gfw {
         std::shared_ptr<Texture2D> CreateSolidTexture(std::uint32_t rgba8);
 
         void RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
-                            D3D12_GPU_DESCRIPTOR_HANDLE texture_srv);
+                            D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, bool transparent);
 
     public:
         Framework();
@@ -142,6 +143,8 @@ namespace gfw {
         void RenderMesh(const MeshBuffers &buffers, const SceneConstants &constants);
 
         void RenderObject(const ::gfw::RenderObject &object, double total_time);
+
+        [[nodiscard]] const SceneState &GetSceneState() const { return scene_state_; }
 
     };
 }

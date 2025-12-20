@@ -28,6 +28,8 @@ cbuffer SceneCB : register(b0)
     float4 lightColor;
     float4 ambientColor;
     float4 albedo;
+    float timeSeconds;
+    float3 _padding0;
 };
 
 Texture2D baseColorTex : register(t0);
@@ -65,7 +67,13 @@ float4 PSMain(VSOutput input) : SV_TARGET
 
     float ndotl = max(dot(N, L), 0.0f);
     float2 uv = frac(input.posW.xz * 0.25f);
-    float3 tex = baseColorTex.Sample(baseColorSampler, uv).rgb;
+    float2 uvAnim = frac(uv + float2(timeSeconds * 0.15f, -timeSeconds * 0.10f));
+    float4 texSample = baseColorTex.Sample(baseColorSampler, uvAnim);
+    float3 texProc = 0.5f + 0.5f * sin(float3(
+        timeSeconds + uvAnim.x * 6.28318f,
+        timeSeconds * 1.3f + uvAnim.y * 6.28318f,
+        timeSeconds * 0.7f));
+    float3 tex = texSample.rgb * texProc;
     float3 diffuse = (albedo.rgb * tex) * lightColor.rgb * ndotl;
 
     float3 R = reflect(-L, N);
@@ -75,7 +83,8 @@ float4 PSMain(VSOutput input) : SV_TARGET
 
     float3 ambient = ambientColor.rgb * (albedo.rgb * tex);
     float3 color = ambient + diffuse + specular;
-    return float4(color, 1.0f);
+    float alpha = saturate(albedo.a * texSample.a);
+    return float4(color, alpha);
 }
 )";
 
@@ -330,6 +339,7 @@ float4 PSMain(VSOutput input) : SV_TARGET
         textures_.clear();
         srv_heap_.Reset();
         depth_stencil_.Reset();
+        pipeline_state_transparent_.Reset();
         pipeline_state_.Reset();
         root_signature_.Reset();
         dsv_heap_.Reset();
@@ -407,7 +417,7 @@ float4 PSMain(VSOutput input) : SV_TARGET
 
         const DirectX::XMMATRIX world = DirectX::XMMatrixRotationY(t) * DirectX::XMMatrixRotationX(t * 0.5f);
         const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-        const SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect);
+        const SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect, t);
 
         MeshBuffers cube_buffers = {};
         cube_buffers.vertex_buffer = vertex_buffer_;
@@ -684,6 +694,31 @@ float4 PSMain(VSOutput input) : SV_TARGET
             return false;
         }
 
+        D3D12_RENDER_TARGET_BLEND_DESC rt_blend_transparent = rt_blend;
+        rt_blend_transparent.BlendEnable = TRUE;
+        rt_blend_transparent.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        rt_blend_transparent.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        rt_blend_transparent.BlendOp = D3D12_BLEND_OP_ADD;
+        rt_blend_transparent.SrcBlendAlpha = D3D12_BLEND_ONE;
+        rt_blend_transparent.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+        rt_blend_transparent.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+
+        D3D12_BLEND_DESC blend_transparent = blend;
+        blend_transparent.RenderTarget[0] = rt_blend_transparent;
+
+        D3D12_DEPTH_STENCIL_DESC depth_stencil_transparent = depth_stencil;
+        depth_stencil_transparent.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc_transparent = pso_desc;
+        pso_desc_transparent.BlendState = blend_transparent;
+        pso_desc_transparent.DepthStencilState = depth_stencil_transparent;
+
+        if (FAILED(device_->CreateGraphicsPipelineState(&pso_desc_transparent,
+                                                        IID_PPV_ARGS(&pipeline_state_transparent_)))) {
+            std::wcerr << L"Failed to create transparent PSO!" << std::endl;
+            return false;
+        }
+
         return true;
     }
 
@@ -937,14 +972,18 @@ float4 PSMain(VSOutput input) : SV_TARGET
     }
 
     void Framework::RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
-                                   D3D12_GPU_DESCRIPTOR_HANDLE texture_srv) {
+                                   D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, bool transparent) {
         std::memcpy(constant_buffer_mapped_, &constants, sizeof(constants));
 
         ID3D12DescriptorHeap *heaps[] = {srv_heap_.Get()};
         command_list_->SetDescriptorHeaps(static_cast<UINT>(std::size(heaps)), heaps);
 
         command_list_->SetGraphicsRootSignature(root_signature_.Get());
-        command_list_->SetPipelineState(pipeline_state_.Get());
+        if (transparent && pipeline_state_transparent_) {
+            command_list_->SetPipelineState(pipeline_state_transparent_.Get());
+        } else {
+            command_list_->SetPipelineState(pipeline_state_.Get());
+        }
         command_list_->IASetPrimitiveTopology(buffers.topology);
         command_list_->IASetVertexBuffers(0, 1, &buffers.vertex_buffer_view);
 
@@ -967,7 +1006,8 @@ float4 PSMain(VSOutput input) : SV_TARGET
         (void) total_time;
 
         const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-        const SceneConstants constants = MakeSceneConstants(world_matrix, scene_state_, aspect);
+        const SceneConstants constants = MakeSceneConstants(world_matrix, scene_state_, aspect,
+                                                           static_cast<float>(total_time));
         RenderMesh(buffers, constants);
     }
 
@@ -975,7 +1015,8 @@ float4 PSMain(VSOutput input) : SV_TARGET
         if (!pipeline_state_ || !root_signature_ || !constant_buffer_ || !srv_heap_ || !default_texture_) {
             return;
         }
-        RenderMeshImpl(buffers, constants, default_texture_->srv_gpu);
+        const bool transparent = constants.albedo.w < 0.999f;
+        RenderMeshImpl(buffers, constants, default_texture_->srv_gpu, transparent);
     }
 
     void Framework::RenderObject(const ::gfw::RenderObject &object, double total_time) {
@@ -991,12 +1032,13 @@ float4 PSMain(VSOutput input) : SV_TARGET
 
         const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
         const DirectX::XMMATRIX world = DirectX::XMLoadFloat4x4(&object.world);
-        SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect);
+        SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect, static_cast<float>(total_time));
         constants.albedo = object.albedo;
 
         const D3D12_GPU_DESCRIPTOR_HANDLE texture_srv =
                 object.texture ? object.texture->srv_gpu : default_texture_->srv_gpu;
 
-        RenderMeshImpl(*object.mesh, constants, texture_srv);
+        const bool transparent = constants.albedo.w < 0.999f;
+        RenderMeshImpl(*object.mesh, constants, texture_srv, transparent);
     }
 }

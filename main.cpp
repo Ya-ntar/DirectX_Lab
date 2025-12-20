@@ -8,13 +8,22 @@
 #include "CubeMesh.h"
 #include "MeshData.h"
 #include <memory>
+#include <cmath>
 
 using namespace gfw;
 
 void RenderCubeAtCenter(Framework &framework, const MeshBuffers &cube_buffers, double total_time) {
     const auto t = static_cast<float>(total_time);
     DirectX::XMMATRIX world = DirectX::XMMatrixRotationY(t) * DirectX::XMMatrixRotationX(t * 0.5f);
-    framework.RenderMesh(cube_buffers, world, total_time);
+
+    RenderObject obj;
+    obj.mesh = &cube_buffers;
+    DirectX::XMStoreFloat4x4(&obj.world, world);
+
+    const float a = 0.2f + 0.6f * (0.5f + 0.5f * std::sin(t));
+    obj.albedo = DirectX::XMFLOAT4(0.85f, 0.25f, 0.25f, a);
+
+    framework.RenderObject(obj, total_time);
 }
 
 int main() {
