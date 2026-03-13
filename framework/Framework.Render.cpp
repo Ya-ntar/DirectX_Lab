@@ -3,26 +3,8 @@
 #include <iterator>
 
 namespace gfw {
-    void Framework::RenderCube(double total_time) {
-        if (!pipeline_state_ || !root_signature_ || !vertex_buffer_ || !index_buffer_ || !constant_buffer_) {
-            return;
-        }
-
-        const float t = static_cast<float>(total_time);
-
-        const DirectX::XMMATRIX world = DirectX::XMMatrixRotationY(t) * DirectX::XMMatrixRotationX(t * 0.5f);
-        const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-        const SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect, t);
-
-        MeshBuffers cube_buffers = {};
-        cube_buffers.vertex_buffer = vertex_buffer_;
-        cube_buffers.index_buffer = index_buffer_;
-        cube_buffers.vertex_buffer_view = vertex_buffer_view_;
-        cube_buffers.index_buffer_view = index_buffer_view_;
-        cube_buffers.index_count = index_count_;
-        cube_buffers.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-        RenderMesh(cube_buffers, constants);
+    bool Framework::IsRenderReady() const {
+        return pipeline_state_ && root_signature_ && constant_buffer_ && srv_heap_ && default_texture_;
     }
 
     void Framework::RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
@@ -53,9 +35,7 @@ namespace gfw {
     }
 
     void Framework::RenderMesh(const MeshBuffers &buffers, const DirectX::XMMATRIX &world_matrix, double total_time) {
-        if (!pipeline_state_ || !root_signature_ || !constant_buffer_) {
-            return;
-        }
+        if (!IsRenderReady()) return;
 
         const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
         const SceneConstants constants = MakeSceneConstants(world_matrix, scene_state_, aspect,
@@ -64,21 +44,13 @@ namespace gfw {
     }
 
     void Framework::RenderMesh(const MeshBuffers &buffers, const SceneConstants &constants) {
-        if (!pipeline_state_ || !root_signature_ || !constant_buffer_ || !srv_heap_ || !default_texture_) {
-            return;
-        }
+        if (!IsRenderReady()) return;
         const bool transparent = constants.albedo.w < 0.999f;
         RenderMeshImpl(buffers, constants, default_texture_->srv_gpu, transparent);
     }
 
     void Framework::RenderObject(const ::gfw::RenderObject &object, double total_time) {
-        if (!object.mesh) {
-            return;
-        }
-
-        if (!pipeline_state_ || !root_signature_ || !constant_buffer_ || !srv_heap_ || !default_texture_) {
-            return;
-        }
+        if (!object.mesh || !IsRenderReady()) return;
 
         const float aspect = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
         const DirectX::XMMATRIX world = DirectX::XMLoadFloat4x4(&object.world);
@@ -92,4 +64,3 @@ namespace gfw {
         RenderMeshImpl(*object.mesh, constants, texture_srv, transparent);
     }
 }
-

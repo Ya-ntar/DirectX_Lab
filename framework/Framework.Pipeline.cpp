@@ -82,50 +82,24 @@ float4 PSMain(VSOutput input) : SV_TARGET
         compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
+        auto compile = [&](const char *entry, const char *target, const wchar_t *fail_msg,
+                          ComPtr<ID3DBlob> &out_blob) {
+            ComPtr<ID3DBlob> error_blob;
+            HRESULT hr = D3DCompile(kPhongShaderSource, std::strlen(kPhongShaderSource),
+                    nullptr, nullptr, nullptr, entry, target, compile_flags, 0, &out_blob, &error_blob);
+            if (FAILED(hr)) {
+                if (error_blob)
+                    std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+                std::wcerr << fail_msg << std::endl;
+                return false;
+            }
+            return true;
+        };
+
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
-        ComPtr<ID3DBlob> error_blob;
-
-        HRESULT hr = D3DCompile(
-                kPhongShaderSource,
-                std::strlen(kPhongShaderSource),
-                nullptr,
-                nullptr,
-                nullptr,
-                "VSMain",
-                "vs_5_0",
-                compile_flags,
-                0,
-                &vs_blob,
-                &error_blob);
-
-        if (FAILED(hr)) {
-            if (error_blob) {
-                std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
-            }
-            std::wcerr << L"Failed to compile vertex shader!" << std::endl;
-            return false;
-        }
-
-        error_blob.Reset();
-        hr = D3DCompile(
-                kPhongShaderSource,
-                std::strlen(kPhongShaderSource),
-                nullptr,
-                nullptr,
-                nullptr,
-                "PSMain",
-                "ps_5_0",
-                compile_flags,
-                0,
-                &ps_blob,
-                &error_blob);
-
-        if (FAILED(hr)) {
-            if (error_blob) {
-                std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
-            }
-            std::wcerr << L"Failed to compile pixel shader!" << std::endl;
+        if (!compile("VSMain", "vs_5_0", L"Failed to compile vertex shader!", vs_blob) ||
+            !compile("PSMain", "ps_5_0", L"Failed to compile pixel shader!", ps_blob)) {
             return false;
         }
 
@@ -170,12 +144,11 @@ float4 PSMain(VSOutput input) : SV_TARGET
         root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
         ComPtr<ID3DBlob> signature_blob;
-        error_blob.Reset();
+        ComPtr<ID3DBlob> error_blob;
         if (FAILED(D3D12SerializeRootSignature(&root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob,
                                                &error_blob))) {
-            if (error_blob) {
+            if (error_blob)
                 std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
-            }
             std::wcerr << L"Failed to serialize RootSignature!" << std::endl;
             return false;
         }

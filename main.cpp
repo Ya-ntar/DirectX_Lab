@@ -10,6 +10,7 @@
 #include "MeshLoader.h"
 #include <memory>
 #include <cmath>
+#include <algorithm>
 
 using namespace gfw;
 
@@ -36,24 +37,14 @@ int main() {
             return -1;
         }
 
-        // Load Sponza
-        MeshData sponzaData = MeshLoader::LoadObj(L"sponza.obj");
-        std::unique_ptr<MeshBuffers> meshBuffers;
-        
-        if (sponzaData.vertex_count > 0) {
-            meshBuffers = framework.CreateMeshBuffers(sponzaData);
-            if (!meshBuffers) {
-                 std::wcerr << L"Failed to create mesh buffers for Sponza!" << std::endl;
-                 return -1;
-            }
-        } else {
-             std::wcerr << L"Failed to load Sponza or file is empty. Falling back to Cube." << std::endl;
-             CubeMesh cube_mesh = CubeMesh::CreateUnit();
-             meshBuffers = framework.CreateMeshBuffers(cube_mesh.ToMeshData());
+        MeshData meshData = MeshLoader::LoadObj(L"sponza.obj");
+        if (meshData.vertex_count == 0) {
+            std::wcerr << L"Sponza not found or empty, using cube." << std::endl;
+            meshData = CubeMesh::CreateUnit().ToMeshData();
         }
-
+        std::unique_ptr<MeshBuffers> meshBuffers = framework.CreateMeshBuffers(meshData);
         if (!meshBuffers) {
-            std::wcerr << L"Failed to create buffers!" << std::endl;
+            std::wcerr << L"Failed to create mesh buffers!" << std::endl;
             return -1;
         }
 
@@ -79,34 +70,14 @@ int main() {
 
             auto camera = framework.GetSceneState().camera;
             
-            // Mouse rotation
             auto mouseOffset = input_device.GetMouseOffset();
             if (mouseOffset.x != 0 || mouseOffset.y != 0) {
                 yaw += mouseOffset.x * mouseSensitivity;
                 pitch += mouseOffset.y * mouseSensitivity;
-
-                // Clamp pitch
-                if (pitch > 1.5f) pitch = 1.5f;
-                if (pitch < -1.5f) pitch = -1.5f;
+                pitch = std::clamp(pitch, -1.5f, 1.5f);
             }
 
-            // Recalculate forward vector from yaw/pitch
-            // Initial camera direction is towards -Z (0, 0, -1) in RH, but lookAtLH.
-            // Let's assume standard FPS:
-            // x = cos(yaw) * cos(pitch)
-            // y = sin(pitch)
-            // z = sin(yaw) * cos(pitch)
-            
-            // Adjust for initial camera orientation if needed.
-            // Camera starts at (0, 1.5, -5) looking at (0, 0, 0).
-            // Forward is (0, -1.5, 5). Normalized: (0, -0.28, 0.96).
-            // This is roughly looking forward +Z and slightly down.
-            
-            // If we start yaw/pitch at 0, 0.
-            // forward = (sin(yaw)*cos(pitch), sin(pitch), cos(yaw)*cos(pitch))
-            // yaw=0, pitch=0 -> (0, 0, 1) -> +Z.
-            
-            // If first frame, initialize yaw/pitch from current forward
+            // Sync yaw/pitch from camera on first frame
             if (first_frame) {
                 DirectX::XMVECTOR p = DirectX::XMLoadFloat3(&camera.position);
                 DirectX::XMVECTOR t = DirectX::XMLoadFloat3(&camera.target);
@@ -167,7 +138,6 @@ int main() {
 
             framework.ClearRenderTarget(0.39f, 0.58f, 0.93f, 1.0f);
 
-          
             DirectX::XMMATRIX world = DirectX::XMMatrixIdentity();
             framework.RenderMesh(*meshBuffers, world, timer.GetTotalTime());
 

@@ -209,8 +209,6 @@ namespace gfw {
         }
 
         constant_buffer_.Reset();
-        index_buffer_.Reset();
-        vertex_buffer_.Reset();
         default_texture_.reset();
         textures_.clear();
         srv_heap_.Reset();

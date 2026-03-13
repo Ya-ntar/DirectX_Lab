@@ -18,6 +18,21 @@ namespace gfw {
 
             return (a << 24u) | (b << 16u) | (g << 8u) | r;
         }
+
+        bool CreateUploadBuffer(ID3D12Device *device, UINT size, const void *data,
+                               ComPtr<ID3D12Resource> &out_resource) {
+            const D3D12_HEAP_PROPERTIES heap = detail::HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
+            const D3D12_RESOURCE_DESC desc = detail::BufferDesc(size);
+            if (FAILED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc,
+                    D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&out_resource))))
+                return false;
+            void *mapped = nullptr;
+            if (FAILED(out_resource->Map(0, nullptr, &mapped)))
+                return false;
+            std::memcpy(mapped, data, size);
+            out_resource->Unmap(0, nullptr);
+            return true;
+        }
     }
 
     bool Framework::CreateDepthResources() {
@@ -108,55 +123,20 @@ namespace gfw {
         buffers->topology = mesh_data.topology;
 
         const UINT vb_size = static_cast<UINT>(mesh_data.vertex_data.size());
-        const D3D12_HEAP_PROPERTIES heap_props = detail::HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
-        const D3D12_RESOURCE_DESC vb_desc = detail::BufferDesc(vb_size);
-
-        if (FAILED(device_->CreateCommittedResource(
-                &heap_props,
-                D3D12_HEAP_FLAG_NONE,
-                &vb_desc,
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-                nullptr,
-                IID_PPV_ARGS(&buffers->vertex_buffer)))) {
+        if (!CreateUploadBuffer(device_.Get(), vb_size, mesh_data.vertex_data.data(), buffers->vertex_buffer)) {
             std::wcerr << L"Failed to create vertex buffer!" << std::endl;
             return nullptr;
         }
-
-        void *vb_mapped = nullptr;
-        if (FAILED(buffers->vertex_buffer->Map(0, nullptr, &vb_mapped))) {
-            std::wcerr << L"Failed to map vertex buffer!" << std::endl;
-            return nullptr;
-        }
-        std::memcpy(vb_mapped, mesh_data.vertex_data.data(), vb_size);
-        buffers->vertex_buffer->Unmap(0, nullptr);
-
         buffers->vertex_buffer_view.BufferLocation = buffers->vertex_buffer->GetGPUVirtualAddress();
         buffers->vertex_buffer_view.SizeInBytes = vb_size;
         buffers->vertex_buffer_view.StrideInBytes = mesh_data.vertex_stride;
 
         if (!mesh_data.indices.empty()) {
             const UINT ib_size = static_cast<UINT>(mesh_data.indices.size() * sizeof(std::uint32_t));
-            const D3D12_RESOURCE_DESC ib_desc = detail::BufferDesc(ib_size);
-
-            if (FAILED(device_->CreateCommittedResource(
-                    &heap_props,
-                    D3D12_HEAP_FLAG_NONE,
-                    &ib_desc,
-                    D3D12_RESOURCE_STATE_GENERIC_READ,
-                    nullptr,
-                    IID_PPV_ARGS(&buffers->index_buffer)))) {
+            if (!CreateUploadBuffer(device_.Get(), ib_size, mesh_data.indices.data(), buffers->index_buffer)) {
                 std::wcerr << L"Failed to create index buffer!" << std::endl;
                 return nullptr;
             }
-
-            void *ib_mapped = nullptr;
-            if (FAILED(buffers->index_buffer->Map(0, nullptr, &ib_mapped))) {
-                std::wcerr << L"Failed to map index buffer!" << std::endl;
-                return nullptr;
-            }
-            std::memcpy(ib_mapped, mesh_data.indices.data(), ib_size);
-            buffers->index_buffer->Unmap(0, nullptr);
-
             buffers->index_buffer_view.BufferLocation = buffers->index_buffer->GetGPUVirtualAddress();
             buffers->index_buffer_view.SizeInBytes = ib_size;
             buffers->index_buffer_view.Format = DXGI_FORMAT_R32_UINT;

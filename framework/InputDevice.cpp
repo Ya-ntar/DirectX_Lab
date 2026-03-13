@@ -70,26 +70,22 @@ void InputDevice::OnKeyDown(const KeyboardInputEventArgs &args) {
 }
 
 void InputDevice::OnMouseMove(const RawMouseEventArgs &args) {
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::LeftButtonDown))
-        AddPressedKey(Keys::LeftButton);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::LeftButtonUp))
-        RemovePressedKey(Keys::LeftButton);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::RightButtonDown))
-        AddPressedKey(Keys::RightButton);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::RightButtonUp))
-        RemovePressedKey(Keys::RightButton);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::MiddleButtonDown))
-        AddPressedKey(Keys::MiddleButton);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::MiddleButtonUp))
-        RemovePressedKey(Keys::MiddleButton);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::Button4Down))
-        AddPressedKey(Keys::MouseButtonX1);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::Button4Up))
-        RemovePressedKey(Keys::MouseButtonX1);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::Button5Down))
-        AddPressedKey(Keys::MouseButtonX2);
-    if (args.button_flags & static_cast<int>(MouseButtonFlags::Button5Up))
-        RemovePressedKey(Keys::MouseButtonX2);
+    static const struct { int flag; Keys key; bool down; } kButtons[] = {
+        { static_cast<int>(MouseButtonFlags::LeftButtonDown),   Keys::LeftButton,   true  },
+        { static_cast<int>(MouseButtonFlags::LeftButtonUp),     Keys::LeftButton,   false },
+        { static_cast<int>(MouseButtonFlags::RightButtonDown),   Keys::RightButton,  true  },
+        { static_cast<int>(MouseButtonFlags::RightButtonUp),     Keys::RightButton,  false },
+        { static_cast<int>(MouseButtonFlags::MiddleButtonDown),  Keys::MiddleButton, true  },
+        { static_cast<int>(MouseButtonFlags::MiddleButtonUp),    Keys::MiddleButton, false },
+        { static_cast<int>(MouseButtonFlags::Button4Down),       Keys::MouseButtonX1, true  },
+        { static_cast<int>(MouseButtonFlags::Button4Up),        Keys::MouseButtonX1, false },
+        { static_cast<int>(MouseButtonFlags::Button5Down),       Keys::MouseButtonX2, true  },
+        { static_cast<int>(MouseButtonFlags::Button5Up),        Keys::MouseButtonX2, false },
+    };
+    for (const auto &b : kButtons) {
+        if (args.button_flags & b.flag)
+            b.down ? AddPressedKey(b.key) : RemovePressedKey(b.key);
+    }
 
     if (args.x != 0 || args.y != 0) {
         mouse_offset_ = Vector2(static_cast<float>(args.x), static_cast<float>(args.y));

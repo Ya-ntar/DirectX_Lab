@@ -19,7 +19,6 @@
 #include "Exports.h"
 #include "Window.h"
 #include "../MeshData.h"
-#include "../CubeMesh.h"
 #include "Constants.h"
 
 using Microsoft::WRL::ComPtr;
@@ -64,13 +63,6 @@ namespace gfw {
 
         ComPtr<ID3D12Resource> depth_stencil_;
 
-        CubeMesh cube_mesh_;
-        ComPtr<ID3D12Resource> vertex_buffer_;
-        ComPtr<ID3D12Resource> index_buffer_;
-        D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view_{};
-        D3D12_INDEX_BUFFER_VIEW index_buffer_view_{};
-        UINT index_count_ = 0;
-
         ComPtr<ID3D12Resource> constant_buffer_;
         std::uint8_t *constant_buffer_mapped_ = nullptr;
 
@@ -96,13 +88,13 @@ namespace gfw {
 
         bool CreatePhongPipeline();
 
-        bool CreateCubeBuffers();
-
         bool CreateConstantBuffer();
 
         bool CreateSrvHeap(UINT descriptor_count);
 
         std::shared_ptr<Texture2D> CreateSolidTexture(std::uint32_t rgba8);
+
+        [[nodiscard]] bool IsRenderReady() const;
 
         void RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
                             D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, bool transparent);
@@ -127,8 +119,6 @@ namespace gfw {
         void BeginFrame();
 
         void ClearRenderTarget(float r, float g, float b, float a);
-
-        void RenderCube(double total_time);
 
         void EndFrame();
 
