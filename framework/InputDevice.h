@@ -35,6 +35,7 @@ namespace gfw
 
         DirectX::SimpleMath::Vector2 GetMousePosition() const { return mouse_position_; }
         DirectX::SimpleMath::Vector2 GetMouseOffset() const { return mouse_offset_; }
+        DirectX::SimpleMath::Vector2 ConsumeMouseDelta();
         int GetMouseWheelDelta() const { return mouse_wheel_delta_; }
 
         explicit InputDevice(HWND hwnd);

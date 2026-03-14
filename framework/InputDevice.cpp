@@ -87,11 +87,8 @@ void InputDevice::OnMouseMove(const RawMouseEventArgs &args) {
             b.down ? AddPressedKey(b.key) : RemovePressedKey(b.key);
     }
 
-    if (args.x != 0 || args.y != 0) {
-        mouse_offset_ = Vector2(static_cast<float>(args.x), static_cast<float>(args.y));
-    } else {
-        mouse_offset_ = Vector2(0.0f, 0.0f);
-    }
+    mouse_offset_.x += static_cast<float>(args.x);
+    mouse_offset_.y += static_cast<float>(args.y);
 
     if (args.button_flags & static_cast<int>(MouseButtonFlags::MouseWheel)) {
         mouse_wheel_delta_ = args.wheel_delta;
@@ -123,4 +120,11 @@ void InputDevice::RemovePressedKey(Keys key) {
 
 bool InputDevice::IsKeyDown(Keys key) const {
     return pressed_keys_.find(key) != pressed_keys_.end();
+}
+
+DirectX::SimpleMath::Vector2 InputDevice::ConsumeMouseDelta() {
+    Vector2 out = mouse_offset_;
+    mouse_offset_.x = 0.0f;
+    mouse_offset_.y = 0.0f;
+    return out;
 }

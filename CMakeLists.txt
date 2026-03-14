@@ -31,7 +31,9 @@ add_executable(DX12Test main.cpp
         framework/Timer.h
         framework/Timer.cpp
         framework/Framework.h
+        framework/FrameworkTypes.h
         framework/FrameworkInternal.h
+        GameController.h
         framework/Framework.Init.cpp
         framework/Framework.Frame.cpp
         framework/Framework.Pipeline.cpp

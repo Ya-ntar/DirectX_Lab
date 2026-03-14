@@ -1,4 +1,5 @@
 #include "Framework.h"
+#include "FrameworkInternal.h"
 
 #ifdef _DEBUG
 #include <dxgidebug.h>
@@ -31,10 +32,8 @@ namespace gfw {
         }
 #endif
 
-        if (FAILED(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&factory_)))) {
-            std::wcerr << L"Failed to create DXGI Factory!" << std::endl;
+        if (detail::CheckFailed(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&factory_)), L"Failed to create DXGI Factory!"))
             return false;
-        }
 
         ComPtr<IDXGIAdapter1> adapter;
         for (UINT adapter_index = 0;
@@ -56,19 +55,15 @@ namespace gfw {
             factory_->EnumWarpAdapter(IID_PPV_ARGS(&adapter));
         }
 
-        if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)))) {
-            std::wcerr << L"Failed to create D3D12 Device!" << std::endl;
+        if (detail::CheckFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)), L"Failed to create D3D12 Device!"))
             return false;
-        }
 
         D3D12_COMMAND_QUEUE_DESC queue_desc = {};
         queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
         queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-        if (FAILED(device_->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue_)))) {
-            std::wcerr << L"Failed to create Command Queue!" << std::endl;
+        if (detail::CheckFailed(device_->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue_)), L"Failed to create Command Queue!"))
             return false;
-        }
 
         DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
         swap_chain_desc.BufferCount = FRAME_COUNT;
@@ -80,21 +75,11 @@ namespace gfw {
         swap_chain_desc.SampleDesc.Count = 1;
 
         ComPtr<IDXGISwapChain1> swap_chain1;
-        if (FAILED(factory_->CreateSwapChainForHwnd(
-                command_queue_.Get(),
-                window_->GetHandle(),
-                &swap_chain_desc,
-                nullptr,
-                nullptr,
-                &swap_chain1))) {
-            std::wcerr << L"Failed to create SwapChain!" << std::endl;
+        if (detail::CheckFailed(factory_->CreateSwapChainForHwnd(
+                command_queue_.Get(), window_->GetHandle(), &swap_chain_desc, nullptr, nullptr, &swap_chain1), L"Failed to create SwapChain!"))
             return false;
-        }
-
-        if (FAILED(swap_chain1.As(&swap_chain_))) {
-            std::wcerr << L"Failed to query SwapChain3!" << std::endl;
+        if (detail::CheckFailed(swap_chain1.As(&swap_chain_), L"Failed to query SwapChain3!"))
             return false;
-        }
 
         if (FAILED(factory_->MakeWindowAssociation(window_->GetHandle(), DXGI_MWA_NO_ALT_ENTER))) {
             std::wcerr << L"Warning: Failed to disable Alt+Enter!" << std::endl;
@@ -107,10 +92,8 @@ namespace gfw {
         rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-        if (FAILED(device_->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&rtv_heap_)))) {
-            std::wcerr << L"Failed to create RTV Descriptor Heap!" << std::endl;
+        if (detail::CheckFailed(device_->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&rtv_heap_)), L"Failed to create RTV Descriptor Heap!"))
             return false;
-        }
 
         rtv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
@@ -118,40 +101,25 @@ namespace gfw {
         render_targets_.resize(FRAME_COUNT);
 
         for (UINT n = 0; n < FRAME_COUNT; n++) {
-            if (FAILED(swap_chain_->GetBuffer(n, IID_PPV_ARGS(&render_targets_[n])))) {
-                std::wcerr << L"Failed to get SwapChain buffer " << n << L"!" << std::endl;
+            if (detail::CheckFailed(swap_chain_->GetBuffer(n, IID_PPV_ARGS(&render_targets_[n])), L"Failed to get SwapChain buffer!"))
                 return false;
-            }
-
             device_->CreateRenderTargetView(render_targets_[n].Get(), nullptr, rtv_handle);
             rtv_handle.ptr += rtv_descriptor_size_;
         }
 
         for (UINT n = 0; n < FRAME_COUNT; n++) {
-            if (FAILED(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                                       IID_PPV_ARGS(&command_allocator_[n])))) {
-                std::wcerr << L"Failed to create Command Allocator " << n << L"!" << std::endl;
+            if (detail::CheckFailed(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_[n])), L"Failed to create Command Allocator!"))
                 return false;
-            }
         }
-
-        if (FAILED(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator_[frame_index_].Get(),
-                                              nullptr, IID_PPV_ARGS(&command_list_)))) {
-            std::wcerr << L"Failed to create Command List!" << std::endl;
+        if (detail::CheckFailed(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator_[frame_index_].Get(), nullptr, IID_PPV_ARGS(&command_list_)), L"Failed to create Command List!"))
             return false;
-        }
-
         command_list_->Close();
 
-        if (FAILED(device_->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)))) {
-            std::wcerr << L"Failed to create Fence!" << std::endl;
+        if (detail::CheckFailed(device_->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)), L"Failed to create Fence!"))
             return false;
-        }
-
         fence_value_ = 1;
-
         fence_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        if (fence_event_ == nullptr) {
+        if (!fence_event_) {
             std::wcerr << L"Failed to create Fence Event!" << std::endl;
             return false;
         }
