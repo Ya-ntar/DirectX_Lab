@@ -4,3 +4,6 @@
 *.vcxproj
 /build/CMakeFiles
 /build
+/build_test
+*.md
+/cmake-build-clean

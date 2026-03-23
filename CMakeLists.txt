@@ -33,6 +33,8 @@ add_executable(DX12Test main.cpp
         framework/Framework.h
         framework/FrameworkTypes.h
         framework/FrameworkInternal.h
+        framework/DeviceManager.h
+        framework/DeviceManager.cpp
         GameController.h
         framework/Framework.Init.cpp
         framework/Framework.Frame.cpp
@@ -52,5 +54,12 @@ target_link_libraries(DX12Test PRIVATE
         d3d12.lib
         d3dcompiler.lib
         dxgi.lib
-        dxguid.lib
+        dxguid.lib)
+
+# Copy shaders to output directory
+add_custom_command(
+    TARGET DX12Test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+            $<TARGET_FILE_DIR:DX12Test>
 )

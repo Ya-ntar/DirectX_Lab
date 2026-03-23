@@ -12,7 +12,7 @@ namespace gfw {
         Shutdown();
     }
 
-    bool Framework::Initialize(Window *window) {
+bool Framework::Initialize(Window *window) {
         if (!window) {
             std::wcerr << L"Framework::Initialize: Window pointer is null!" << std::endl;
             return false;
@@ -20,43 +20,13 @@ namespace gfw {
 
         window_ = window;
 
-        UINT dxgi_factory_flags = 0;
-
-#ifdef _DEBUG
-        {
-            ComPtr<ID3D12Debug> debug_controller;
-            if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller)))) {
-                debug_controller->EnableDebugLayer();
-                dxgi_factory_flags |= DXGI_CREATE_FACTORY_DEBUG;
-            }
-        }
-#endif
-
-        if (detail::CheckFailed(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&factory_)), L"Failed to create DXGI Factory!"))
+        // Initialize the device manager (which creates the DXGI factory and D3D12 device)
+        if (!device_manager_.Initialize()) {
             return false;
-
-        ComPtr<IDXGIAdapter1> adapter;
-        for (UINT adapter_index = 0;
-             DXGI_ERROR_NOT_FOUND != factory_->EnumAdapters1(adapter_index, &adapter); ++adapter_index) {
-            DXGI_ADAPTER_DESC1 desc;
-            adapter->GetDesc1(&desc);
-
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
-                continue;
-            }
-
-            ComPtr<ID3D12Device> test_device;
-            if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&test_device)))) {
-                break;
-            }
         }
 
-        if (!adapter) {
-            factory_->EnumWarpAdapter(IID_PPV_ARGS(&adapter));
-        }
-
-        if (detail::CheckFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)), L"Failed to create D3D12 Device!"))
-            return false;
+        factory_ = device_manager_.GetFactory();
+        device_ = device_manager_.GetDevice();
 
         D3D12_COMMAND_QUEUE_DESC queue_desc = {};
         queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;

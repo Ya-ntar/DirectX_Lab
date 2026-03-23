@@ -1,105 +1,41 @@
 #include "Framework.h"
 
-#include <iterator>
-
 namespace gfw {
-    namespace {
-        const char *kPhongShaderSource = R"(
-cbuffer SceneCB : register(b0)
-{
-    row_major float4x4 world;
-    row_major float4x4 view;
-    row_major float4x4 proj;
-    float4 lightDirShininess;
-    float4 cameraPos;
-    float4 lightColor;
-    float4 ambientColor;
-    float4 albedo;
-    float timeSeconds;
-    float3 _padding0;
-};
-
-Texture2D baseColorTex : register(t0);
-SamplerState baseColorSampler : register(s0);
-
-struct VSInput
-{
-    float3 pos : POSITION;
-    float3 normal : NORMAL;
-};
-
-struct VSOutput
-{
-    float4 posH : SV_POSITION;
-    float3 posW : TEXCOORD0;
-    float3 normalW : TEXCOORD1;
-};
-
-VSOutput VSMain(VSInput input)
-{
-    VSOutput o;
-    float4 posW = mul(float4(input.pos, 1.0f), world);
-    float4 posV = mul(posW, view);
-    o.posH = mul(posV, proj);
-    o.posW = posW.xyz;
-    o.normalW = mul(float4(input.normal, 0.0f), world).xyz;
-    return o;
-}
-
-float4 PSMain(VSOutput input) : SV_TARGET
-{
-    float3 N = normalize(input.normalW);
-    float3 L = normalize(lightDirShininess.xyz);
-    float3 V = normalize(cameraPos.xyz - input.posW);
-
-    float ndotl = max(dot(N, L), 0.0f);
-    float2 uv = frac(input.posW.xz * 0.25f);
-    float2 uvAnim = frac(uv + float2(timeSeconds * 0.15f, -timeSeconds * 0.10f));
-    float4 texSample = baseColorTex.Sample(baseColorSampler, uvAnim);
-    float3 texProc = 0.5f + 0.5f * sin(float3(
-        timeSeconds + uvAnim.x * 6.28318f,
-        timeSeconds * 1.3f + uvAnim.y * 6.28318f,
-        timeSeconds * 0.7f));
-    float3 tex = texSample.rgb * texProc;
-    float3 diffuse = (albedo.rgb * tex) * lightColor.rgb * ndotl;
-
-    float3 R = reflect(-L, N);
-    float specAngle = max(dot(R, V), 0.0f);
-    float spec = pow(specAngle, max(lightDirShininess.w, 1.0f));
-    float3 specular = lightColor.rgb * spec;
-
-    float3 ambient = ambientColor.rgb * (albedo.rgb * tex);
-    float3 color = ambient + diffuse + specular;
-    float alpha = saturate(albedo.a * texSample.a);
-    return float4(color, alpha);
-}
-)";
-    }
-
     bool Framework::CreatePhongPipeline() {
         UINT compile_flags = 0;
-#ifdef _DEBUG
+    #ifdef _DEBUG
         compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
-        auto compile = [&](const char *entry, const char *target, const wchar_t *fail_msg,
-                          ComPtr<ID3DBlob> &out_blob) {
-            ComPtr<ID3DBlob> error_blob;
-            HRESULT hr = D3DCompile(kPhongShaderSource, std::strlen(kPhongShaderSource),
-                    nullptr, nullptr, nullptr, entry, target, compile_flags, 0, &out_blob, &error_blob);
-            if (FAILED(hr)) {
-                if (error_blob)
-                    std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
-                std::wcerr << fail_msg << std::endl;
-                return false;
-            }
-            return true;
-        };
+    #endif
 
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
-        if (!compile("VSMain", "vs_5_0", L"Failed to compile vertex shader!", vs_blob) ||
-            !compile("PSMain", "ps_5_0", L"Failed to compile pixel shader!", ps_blob)) {
+        ComPtr<ID3DBlob> error_blob;
+
+        // Compile vertex shader from file
+        HRESULT hr_vs = D3DCompileFromFile(L"VertexShader.hlsl",
+                                            nullptr, nullptr,
+                                            "VSMain", "vs_5_0",
+                                            compile_flags, 0,
+                                            &vs_blob, &error_blob);
+        if (FAILED(hr_vs)) {
+            if (error_blob) {
+                std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+            }
+            std::wcerr << L"Failed to compile vertex shader from file!" << std::endl;
+            return false;
+        }
+
+        error_blob.Reset();
+        HRESULT hr_ps = D3DCompileFromFile(L"PixelShader.hlsl",
+                                            nullptr, nullptr,
+                                            "PSMain", "ps_5_0",
+                                            compile_flags, 0,
+                                            &ps_blob, &error_blob);
+        if (FAILED(hr_ps)) {
+            if (error_blob) {
+                std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+            }
+            std::wcerr << L"Failed to compile pixel shader from file!" << std::endl;
             return false;
         }
 
@@ -144,9 +80,8 @@ float4 PSMain(VSOutput input) : SV_TARGET
         root_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
         ComPtr<ID3DBlob> signature_blob;
-        ComPtr<ID3DBlob> error_blob;
         if (FAILED(D3D12SerializeRootSignature(&root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob,
-                                               &error_blob))) {
+                                                &error_blob))) {
             if (error_blob)
                 std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
             std::wcerr << L"Failed to serialize RootSignature!" << std::endl;
