@@ -7,3 +7,4 @@
 /build_test
 *.md
 /cmake-build-clean
+*.txt

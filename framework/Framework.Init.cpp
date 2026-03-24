@@ -20,7 +20,7 @@ bool Framework::Initialize(Window *window) {
 
         window_ = window;
 
-        // Initialize the device manager (which creates the DXGI factory and D3D12 device)
+
         if (!device_manager_.Initialize()) {
             return false;
         }

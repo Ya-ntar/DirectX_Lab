@@ -12,7 +12,7 @@ namespace gfw {
         ComPtr<ID3DBlob> error_blob;
 
         // Compile vertex shader from file
-        HRESULT hr_vs = D3DCompileFromFile(L"VertexShader.hlsl",
+        HRESULT hr_vs = D3DCompileFromFile(L"shaders/VertexShader.hlsl",
                                             nullptr, nullptr,
                                             "VSMain", "vs_5_0",
                                             compile_flags, 0,
@@ -26,7 +26,7 @@ namespace gfw {
         }
 
         error_blob.Reset();
-        HRESULT hr_ps = D3DCompileFromFile(L"PixelShader.hlsl",
+        HRESULT hr_ps = D3DCompileFromFile(L"shaders/PixelShader.hlsl",
                                             nullptr, nullptr,
                                             "PSMain", "ps_5_0",
                                             compile_flags, 0,
