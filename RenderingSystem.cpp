@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <vector>
 #include <d3dcompiler.h>
 #include <iostream>
 
@@ -459,5 +460,15 @@ void RenderingSystem::LightingPass() {
     cmd->SetGraphicsRootDescriptorTable(1, gbuffer_.GetSrv(0));
     cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     cmd->DrawInstanced(3, 1, 0, 0);
+}
+
+void PushLightsToRenderingSystem(const LightControlState &state, RenderingSystem &rendering) {
+    rendering.SetDirectionalLight(state.directional);
+    rendering.SetPointLights(std::vector<PointLight>(
+        state.point_lights.begin(),
+        state.point_lights.begin() + state.enabled_point_count));
+    rendering.SetSpotLights(std::vector<SpotLight>(
+        state.spot_lights.begin(),
+        state.spot_lights.begin() + state.enabled_spot_count));
 }
 }

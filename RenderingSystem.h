@@ -4,24 +4,10 @@
 #include <vector>
 
 #include "GBuffer.h"
+#include "SceneLighting.h"
 #include "framework/Framework.h"
 
 namespace gfw {
-struct PointLight {
-    DirectX::XMFLOAT3 position = {0.0f, 1.0f, 0.0f};
-    float range = 7.0f;
-    DirectX::XMFLOAT3 color = {1.0f, 1.0f, 1.0f};
-    float intensity = 1.0f;
-};
-
-struct SpotLight {
-    DirectX::XMFLOAT3 position = {0.0f, 2.0f, 0.0f};
-    float range = 15.0f;
-    DirectX::XMFLOAT3 direction = {0.0f, -1.0f, 0.0f};
-    float angle_cos = 0.85f;
-    DirectX::XMFLOAT3 color = {1.0f, 1.0f, 1.0f};
-    float intensity = 2.0f;
-};
 
 class RenderingSystem {
 public:

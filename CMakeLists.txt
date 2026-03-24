@@ -51,6 +51,8 @@ add_executable(DX12Test main.cpp
         MeshLoader.cpp
         GBuffer.h
         GBuffer.cpp
+        SceneLighting.h
+        SceneLighting.cpp
         RenderingSystem.h
         RenderingSystem.cpp
         framework/Constants.h)
