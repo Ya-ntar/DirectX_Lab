@@ -49,6 +49,10 @@ add_executable(DX12Test main.cpp
         MeshData.h
         MeshLoader.h
         MeshLoader.cpp
+        GBuffer.h
+        GBuffer.cpp
+        RenderingSystem.h
+        RenderingSystem.cpp
         framework/Constants.h)
 
 target_compile_definitions(DX12Test PRIVATE GAMEFRAMEWORK_STATIC)

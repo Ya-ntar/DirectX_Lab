@@ -129,5 +129,20 @@ public:
 
     void SetCamera(const Camera& camera) { scene_state_.camera = camera; }
 
+    [[nodiscard]] ID3D12Device *GetDevice() const { return device_.Get(); }
+    [[nodiscard]] ID3D12GraphicsCommandList *GetCommandList() const { return command_list_.Get(); }
+    [[nodiscard]] ID3D12DescriptorHeap *GetSrvHeap() const { return srv_heap_.Get(); }
+    [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE GetDepthDsvHandle() const {
+        return dsv_heap_ ? dsv_heap_->GetCPUDescriptorHandleForHeapStart() : D3D12_CPU_DESCRIPTOR_HANDLE{};
+    }
+    [[nodiscard]] D3D12_VIEWPORT GetViewport() const { return viewport_; }
+    [[nodiscard]] D3D12_RECT GetScissorRect() const { return scissor_rect_; }
+    [[nodiscard]] UINT GetSrvDescriptorSize() const { return srv_descriptor_size_; }
+    [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferRtv() const {
+        D3D12_CPU_DESCRIPTOR_HANDLE rtv = rtv_heap_->GetCPUDescriptorHandleForHeapStart();
+        rtv.ptr += static_cast<SIZE_T>(frame_index_) * rtv_descriptor_size_;
+        return rtv;
+    }
+
 };
 }
