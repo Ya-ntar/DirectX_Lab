@@ -9,6 +9,7 @@ cbuffer SceneCB : register(b0)
     float4 ambientColor;
     float4 albedo;
     float4 uvParams;
+    float4 effectParams;
     float timeSeconds;
     float3 _padding0;
 }

@@ -4,6 +4,7 @@
 #include "Delegates.h"
 #include "Exports.h"
 #include <unordered_set>
+#include <windows.h>
 
 #ifndef DIRECTX_SIMPLEMATH_H
 namespace DirectX::SimpleMath {

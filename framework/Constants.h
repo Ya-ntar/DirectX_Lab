@@ -15,6 +15,7 @@ namespace gfw {
         DirectX::XMFLOAT4 ambient_color;
         DirectX::XMFLOAT4 albedo;
         DirectX::XMFLOAT4 uv_params = {1.0f, 1.0f, 0.15f, -0.10f};
+        DirectX::XMFLOAT4 effect_params = {0.0f, 0.0f, 0.0f, 0.0f};
         float time_seconds = 0.0f;
         DirectX::XMFLOAT3 _padding0 = {0.0f, 0.0f, 0.0f};
     };

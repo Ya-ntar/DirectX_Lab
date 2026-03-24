@@ -20,6 +20,9 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
 endif ()
 
 add_executable(DX12Test main.cpp
+        AppRunner.h
+        AppRunner.cpp
+        ControlSettings.h
         framework/Keys.h
         framework/InputDevice.h
         framework/InputDevice.cpp

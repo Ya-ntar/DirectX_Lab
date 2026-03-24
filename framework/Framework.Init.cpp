@@ -159,6 +159,7 @@ bool Framework::Initialize(Window *window) {
         textures_.clear();
         srv_heap_.Reset();
         depth_stencil_.Reset();
+        pipeline_state_rainbow_.Reset();
         pipeline_state_transparent_.Reset();
         pipeline_state_.Reset();
         root_signature_.Reset();

@@ -15,7 +15,10 @@ namespace gfw {
         command_list_->SetDescriptorHeaps(static_cast<UINT>(std::size(heaps)), heaps);
 
         command_list_->SetGraphicsRootSignature(root_signature_.Get());
-        if (transparent && pipeline_state_transparent_) {
+        const bool rainbow_enabled = constants.effect_params.x > 0.99f && constants.effect_params.x < 1.01f;
+        if (rainbow_enabled && pipeline_state_rainbow_) {
+            command_list_->SetPipelineState(pipeline_state_rainbow_.Get());
+        } else if (transparent && pipeline_state_transparent_) {
             command_list_->SetPipelineState(pipeline_state_transparent_.Get());
         } else {
             command_list_->SetPipelineState(pipeline_state_.Get());
@@ -57,6 +60,7 @@ namespace gfw {
         SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect, static_cast<float>(total_time));
         constants.albedo = object.albedo;
         constants.uv_params = object.uv_params;
+        constants.effect_params = object.effect_params;
 
         const D3D12_GPU_DESCRIPTOR_HANDLE texture_srv =
                 object.texture ? object.texture->srv_gpu : default_texture_->srv_gpu;

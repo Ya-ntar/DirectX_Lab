@@ -9,6 +9,7 @@ cbuffer SceneCB : register(b0)
     float4 ambientColor;
     float4 albedo;
     float4 uvParams;
+    float4 effectParams;
     float timeSeconds;
     float3 _padding0;
 }
@@ -39,7 +40,7 @@ float3 ApplyRainbowShift(float3 baseColor, float2 uvAnim, float timeSeconds)
     return baseColor * texProc;
 }
 
-float4 PSMain(VSOutput input) : SV_TARGET
+float4 ShadePhong(VSOutput input, bool applyRainbow) 
 {
     float3 N = normalize(input.normalW);
     float3 L = normalize(lightDirShininess.xyz);
@@ -50,7 +51,10 @@ float4 PSMain(VSOutput input) : SV_TARGET
     float2 uvAnim = frac(uvTiled + timeSeconds * uvParams.zw);
     float4 texSample = baseColorTex.Sample(baseColorSampler, uvAnim);
     float3 tex = texSample.rgb;
-   // float3 tex = ApplyRainbowShift(texSample.rgb, uvAnim, timeSeconds);
+    if (applyRainbow) {
+        const float rainbowTime = timeSeconds * max(effectParams.y, 0.001f);
+        tex = ApplyRainbowShift(texSample.rgb, uvAnim, rainbowTime);
+    }
     float3 diffuse = (albedo.rgb * tex) * lightColor.rgb * ndotl;
 
     float3 R = reflect(-L, N);
@@ -62,4 +66,14 @@ float4 PSMain(VSOutput input) : SV_TARGET
     float3 color = ambient + diffuse + specular;
     float alpha = saturate(albedo.a * texSample.a);
     return float4(color, alpha);
+}
+
+float4 PSMain(VSOutput input) : SV_TARGET
+{
+    return ShadePhong(input, false);
+}
+
+float4 PSRainbow(VSOutput input) : SV_TARGET
+{
+    return ShadePhong(input, true);
 }

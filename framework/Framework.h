@@ -48,6 +48,7 @@ private:
     ComPtr<ID3D12RootSignature> root_signature_;
     ComPtr<ID3D12PipelineState> pipeline_state_;
     ComPtr<ID3D12PipelineState> pipeline_state_transparent_;
+    ComPtr<ID3D12PipelineState> pipeline_state_rainbow_;
 
     ComPtr<ID3D12Resource> depth_stencil_;
 

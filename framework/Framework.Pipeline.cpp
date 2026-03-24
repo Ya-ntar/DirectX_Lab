@@ -9,6 +9,7 @@ namespace gfw {
 
         ComPtr<ID3DBlob> vs_blob;
         ComPtr<ID3DBlob> ps_blob;
+        ComPtr<ID3DBlob> ps_rainbow_blob;
         ComPtr<ID3DBlob> error_blob;
 
         // Compile vertex shader from file
@@ -36,6 +37,20 @@ namespace gfw {
                 std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
             }
             std::wcerr << L"Failed to compile pixel shader from file!" << std::endl;
+            return false;
+        }
+
+        error_blob.Reset();
+        HRESULT hr_ps_rainbow = D3DCompileFromFile(L"shaders/PixelShader.hlsl",
+                                                   nullptr, nullptr,
+                                                   "PSRainbow", "ps_5_0",
+                                                   compile_flags, 0,
+                                                   &ps_rainbow_blob, &error_blob);
+        if (FAILED(hr_ps_rainbow)) {
+            if (error_blob) {
+                std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+            }
+            std::wcerr << L"Failed to compile rainbow pixel shader from file!" << std::endl;
             return false;
         }
 
@@ -159,6 +174,13 @@ namespace gfw {
 
         if (FAILED(device_->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline_state_)))) {
             std::wcerr << L"Failed to create PSO!" << std::endl;
+            return false;
+        }
+
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc_rainbow = pso_desc;
+        pso_desc_rainbow.PS = {ps_rainbow_blob->GetBufferPointer(), ps_rainbow_blob->GetBufferSize()};
+        if (FAILED(device_->CreateGraphicsPipelineState(&pso_desc_rainbow, IID_PPV_ARGS(&pipeline_state_rainbow_)))) {
+            std::wcerr << L"Failed to create rainbow PSO!" << std::endl;
             return false;
         }
 
