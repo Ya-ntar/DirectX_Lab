@@ -8,6 +8,7 @@ cbuffer SceneCB : register(b0)
     float4 lightColor;
     float4 ambientColor;
     float4 albedo;
+    float4 uvParams;
     float timeSeconds;
     float3 _padding0;
 }
@@ -26,7 +27,17 @@ struct VSOutput
     float4 posH : SV_POSITION;
     float3 posW : TEXCOORD0;
     float3 normalW : TEXCOORD1;
+    float2 uv : TEXCOORD2;
 };
+
+float3 ApplyRainbowShift(float3 baseColor, float2 uvAnim, float timeSeconds)
+{
+    float3 texProc = 0.5f + 0.5f * sin(float3(
+        timeSeconds + uvAnim.x * 6.28318f,
+        timeSeconds * 1.3f + uvAnim.y * 6.28318f,
+        timeSeconds * 0.7f));
+    return baseColor * texProc;
+}
 
 float4 PSMain(VSOutput input) : SV_TARGET
 {
@@ -35,14 +46,11 @@ float4 PSMain(VSOutput input) : SV_TARGET
     float3 V = normalize(cameraPos.xyz - input.posW);
 
     float ndotl = max(dot(N, L), 0.0f);
-    float2 uv = frac(input.posW.xz * 0.25f);
-    float2 uvAnim = frac(uv + float2(timeSeconds * 0.15f, -timeSeconds * 0.10f));
+    float2 uvTiled = input.uv * uvParams.xy;
+    float2 uvAnim = frac(uvTiled + timeSeconds * uvParams.zw);
     float4 texSample = baseColorTex.Sample(baseColorSampler, uvAnim);
-    float3 texProc = 0.5f + 0.5f * sin(float3(
-        timeSeconds + uvAnim.x * 6.28318f,
-        timeSeconds * 1.3f + uvAnim.y * 6.28318f,
-        timeSeconds * 0.7f));
-    float3 tex = texSample.rgb * texProc;
+    float3 tex = texSample.rgb;
+   // float3 tex = ApplyRainbowShift(texSample.rgb, uvAnim, timeSeconds);
     float3 diffuse = (albedo.rgb * tex) * lightColor.rgb * ndotl;
 
     float3 R = reflect(-L, N);

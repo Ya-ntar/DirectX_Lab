@@ -20,6 +20,7 @@ struct RenderObject {
     const MeshBuffers *mesh = nullptr;
     DirectX::XMFLOAT4X4 world = {};
     DirectX::XMFLOAT4 albedo = {0.85f, 0.25f, 0.25f, 1.0f};
+    DirectX::XMFLOAT4 uv_params = {1.0f, 1.0f, 0.15f, -0.10f};
     std::shared_ptr<Texture2D> texture = {};
 
     RenderObject() {

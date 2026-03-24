@@ -8,6 +8,7 @@ cbuffer SceneCB : register(b0)
     float4 lightColor;
     float4 ambientColor;
     float4 albedo;
+    float4 uvParams;
     float timeSeconds;
     float3 _padding0;
 }
@@ -19,6 +20,7 @@ struct VSInput
 {
     float3 pos : POSITION;
     float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
 };
 
 struct VSOutput
@@ -26,6 +28,7 @@ struct VSOutput
     float4 posH : SV_POSITION;
     float3 posW : TEXCOORD0;
     float3 normalW : TEXCOORD1;
+    float2 uv : TEXCOORD2;
 };
 
 VSOutput VSMain(VSInput input)
@@ -36,5 +39,6 @@ VSOutput VSMain(VSInput input)
     o.posH = mul(posV, proj);
     o.posW = posW.xyz;
     o.normalW = mul(float4(input.normal, 0.0f), world).xyz;
+    o.uv = input.uv;
     return o;
 }

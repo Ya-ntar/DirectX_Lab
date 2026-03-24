@@ -94,16 +94,19 @@ namespace gfw {
             return false;
         }
 
-        const std::array<D3D12_INPUT_ELEMENT_DESC, 2> input_layout = {
+        const std::array<D3D12_INPUT_ELEMENT_DESC, 3> input_layout = {
                 D3D12_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
                                          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
                 D3D12_INPUT_ELEMENT_DESC{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+                                         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+                D3D12_INPUT_ELEMENT_DESC{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
                                          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
         };
 
         D3D12_RASTERIZER_DESC rasterizer = {};
         rasterizer.FillMode = D3D12_FILL_MODE_SOLID;
-        rasterizer.CullMode = D3D12_CULL_MODE_BACK;
+        // Diagnostic: disable culling to verify OBJ winding/handedness issues.
+        rasterizer.CullMode = D3D12_CULL_MODE_NONE;
         rasterizer.FrontCounterClockwise = FALSE;
         rasterizer.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
         rasterizer.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;

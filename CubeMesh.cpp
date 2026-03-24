@@ -9,38 +9,39 @@ namespace gfw {
         struct Vertex {
             float px, py, pz;
             float nx, ny, nz;
+            float u, v;
         };
 
         const std::array<Vertex, 24> vertices = {
-                Vertex{-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f},
-                Vertex{-1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f},
-                Vertex{1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f},
-                Vertex{1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f},
+                Vertex{-1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f},
+                Vertex{-1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f},
+                Vertex{1.0f, 1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f},
+                Vertex{1.0f, -1.0f, -1.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f},
 
-                Vertex{-1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
-                Vertex{1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
-                Vertex{1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
-                Vertex{-1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f},
+                Vertex{-1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f},
+                Vertex{1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f},
+                Vertex{1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f},
+                Vertex{-1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f},
 
-                Vertex{-1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f},
-                Vertex{-1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f},
-                Vertex{1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f},
-                Vertex{1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f},
+                Vertex{-1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f},
+                Vertex{-1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f},
+                Vertex{1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f},
+                Vertex{1.0f, 1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f},
 
-                Vertex{-1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f},
-                Vertex{1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f},
-                Vertex{1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f},
-                Vertex{-1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f},
+                Vertex{-1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f},
+                Vertex{1.0f, -1.0f, -1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 1.0f},
+                Vertex{1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f},
+                Vertex{-1.0f, -1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f},
 
-                Vertex{-1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 0.0f},
-                Vertex{-1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f},
-                Vertex{-1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f},
-                Vertex{-1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f},
+                Vertex{-1.0f, -1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f},
+                Vertex{-1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+                Vertex{-1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f},
+                Vertex{-1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f},
 
-                Vertex{1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f},
-                Vertex{1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 0.0f},
-                Vertex{1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-                Vertex{1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
+                Vertex{1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f},
+                Vertex{1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+                Vertex{1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f},
+                Vertex{1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f},
         };
 
         const std::array<std::uint16_t, 36> indices = {

@@ -56,6 +56,7 @@ namespace gfw {
         const DirectX::XMMATRIX world = DirectX::XMLoadFloat4x4(&object.world);
         SceneConstants constants = MakeSceneConstants(world, scene_state_, aspect, static_cast<float>(total_time));
         constants.albedo = object.albedo;
+        constants.uv_params = object.uv_params;
 
         const D3D12_GPU_DESCRIPTOR_HANDLE texture_srv =
                 object.texture ? object.texture->srv_gpu : default_texture_->srv_gpu;

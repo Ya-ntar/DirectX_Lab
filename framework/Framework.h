@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <windows.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -66,6 +67,7 @@ private:
     UINT frame_index_ = 0;
     UINT64 fence_value_ = 0;
     HANDLE fence_event_ = nullptr;
+    bool com_initialized_ = false;
 
     std::vector<ComPtr<ID3D12Resource>> render_targets_;
 
@@ -114,6 +116,7 @@ public:
     std::unique_ptr<MeshBuffers> CreateMeshBuffers(const MeshData &mesh_data);
 
     std::shared_ptr<Texture2D> CreateSolidTexture(const DirectX::XMFLOAT4 &color);
+    std::shared_ptr<Texture2D> CreateTextureFromFile(const std::wstring &filename);
 
     void RenderMesh(const MeshBuffers &buffers, const DirectX::XMMATRIX &world_matrix, double total_time);
 

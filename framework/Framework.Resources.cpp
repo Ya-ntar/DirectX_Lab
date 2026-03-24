@@ -2,10 +2,152 @@
 #include "FrameworkInternal.h"
 
 #include <algorithm>
+#include <fstream>
 #include <iterator>
+#include <vector>
+#include <wincodec.h>
 
 namespace gfw {
     namespace {
+        struct DecodedImage {
+            UINT width = 0;
+            UINT height = 0;
+            std::vector<std::uint8_t> rgba;
+        };
+
+        static bool EndsWithTga(const std::wstring &filename) {
+            size_t dot_pos = filename.find_last_of(L'.');
+            if (dot_pos == std::wstring::npos) {
+                return false;
+            }
+            std::wstring ext = filename.substr(dot_pos);
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](wchar_t c) {
+                if (c >= L'A' && c <= L'Z') return static_cast<wchar_t>(c - L'A' + L'a');
+                return c;
+            });
+            return ext == L".tga";
+        }
+
+        static std::uint16_t ReadLe16(const std::uint8_t *ptr) {
+            return static_cast<std::uint16_t>(ptr[0] | (static_cast<std::uint16_t>(ptr[1]) << 8u));
+        }
+
+        static bool LoadTgaImage(const std::wstring &filename, DecodedImage &out_image) {
+            std::ifstream file(filename, std::ios::binary);
+            if (!file.is_open()) {
+                return false;
+            }
+
+            std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)),
+                                            std::istreambuf_iterator<char>());
+            if (bytes.size() < 18) {
+                return false;
+            }
+
+            const std::uint8_t id_len = bytes[0];
+            const std::uint8_t color_map_type = bytes[1];
+            const std::uint8_t image_type = bytes[2];
+            if (color_map_type != 0) {
+                return false;
+            }
+            if (image_type != 2 && image_type != 10) { // uncompressed / RLE true-color
+                return false;
+            }
+
+            const std::uint16_t width = ReadLe16(&bytes[12]);
+            const std::uint16_t height = ReadLe16(&bytes[14]);
+            const std::uint8_t bpp = bytes[16];
+            const std::uint8_t image_desc = bytes[17];
+            if (width == 0 || height == 0) {
+                return false;
+            }
+            if (bpp != 24 && bpp != 32) {
+                return false;
+            }
+
+            const size_t pixel_bytes = bpp / 8;
+            size_t offset = 18u + static_cast<size_t>(id_len);
+            if (offset >= bytes.size()) {
+                return false;
+            }
+
+            const size_t pixel_count = static_cast<size_t>(width) * static_cast<size_t>(height);
+            std::vector<std::uint8_t> bgra(pixel_count * 4, 255);
+            size_t out_i = 0;
+
+            auto read_pixel = [&](size_t src_offset) {
+                bgra[out_i + 0] = bytes[src_offset + 0];
+                bgra[out_i + 1] = bytes[src_offset + 1];
+                bgra[out_i + 2] = bytes[src_offset + 2];
+                bgra[out_i + 3] = (pixel_bytes == 4) ? bytes[src_offset + 3] : 255;
+            };
+
+            if (image_type == 2) {
+                const size_t need = pixel_count * pixel_bytes;
+                if (offset + need > bytes.size()) {
+                    return false;
+                }
+                for (size_t i = 0; i < pixel_count; ++i) {
+                    read_pixel(offset);
+                    offset += pixel_bytes;
+                    out_i += 4;
+                }
+            } else {
+                while (out_i / 4 < pixel_count) {
+                    if (offset >= bytes.size()) {
+                        return false;
+                    }
+                    const std::uint8_t packet = bytes[offset++];
+                    const size_t count = static_cast<size_t>((packet & 0x7Fu) + 1u);
+                    if (packet & 0x80u) {
+                        if (offset + pixel_bytes > bytes.size()) {
+                            return false;
+                        }
+                        for (size_t i = 0; i < count; ++i) {
+                            if (out_i / 4 >= pixel_count) {
+                                return false;
+                            }
+                            read_pixel(offset);
+                            out_i += 4;
+                        }
+                        offset += pixel_bytes;
+                    } else {
+                        const size_t need = count * pixel_bytes;
+                        if (offset + need > bytes.size()) {
+                            return false;
+                        }
+                        for (size_t i = 0; i < count; ++i) {
+                            if (out_i / 4 >= pixel_count) {
+                                return false;
+                            }
+                            read_pixel(offset);
+                            offset += pixel_bytes;
+                            out_i += 4;
+                        }
+                    }
+                }
+            }
+
+            std::vector<std::uint8_t> rgba(pixel_count * 4, 255);
+            const bool top_origin = (image_desc & 0x20u) != 0;
+            for (UINT y = 0; y < height; ++y) {
+                const UINT src_y = top_origin ? y : (height - 1u - y);
+                for (UINT x = 0; x < width; ++x) {
+                    const size_t src = (static_cast<size_t>(src_y) * width + x) * 4u;
+                    const size_t dst = (static_cast<size_t>(y) * width + x) * 4u;
+                    rgba[dst + 0] = bgra[src + 2];
+                    rgba[dst + 1] = bgra[src + 1];
+                    rgba[dst + 2] = bgra[src + 0];
+                    rgba[dst + 3] = bgra[src + 3];
+                }
+            }
+
+            out_image.width = width;
+            out_image.height = height;
+            out_image.rgba = std::move(rgba);
+            return true;
+        }
+
         std::uint32_t PackRGBA8(const DirectX::XMFLOAT4 &color) {
             auto clamp01 = [](float v) {
                 return std::max(0.0f, std::min(1.0f, v));
@@ -283,6 +425,172 @@ namespace gfw {
         srv_desc.Texture2D.MipLevels = 1;
         srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
 
+        device_->CreateShaderResourceView(resource.Get(), &srv_desc, cpu_handle);
+
+        auto texture = std::make_shared<Texture2D>();
+        texture->resource = resource;
+        texture->srv_gpu = gpu_handle;
+        textures_.push_back(texture);
+        return texture;
+    }
+
+    std::shared_ptr<Texture2D> Framework::CreateTextureFromFile(const std::wstring &filename) {
+        if (!device_ || !srv_heap_) {
+            return {};
+        }
+
+        const UINT heap_capacity = srv_heap_->GetDesc().NumDescriptors;
+        if (next_srv_index_ >= heap_capacity) {
+            return {};
+        }
+
+        UINT width = 0;
+        UINT height = 0;
+        std::vector<std::uint8_t> rgba_data;
+
+        bool loaded = false;
+        ComPtr<IWICImagingFactory> wic_factory;
+        if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                       IID_PPV_ARGS(&wic_factory)))) {
+            ComPtr<IWICBitmapDecoder> decoder;
+            if (SUCCEEDED(wic_factory->CreateDecoderFromFilename(
+                    filename.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder))) {
+                ComPtr<IWICBitmapFrameDecode> frame;
+                if (SUCCEEDED(decoder->GetFrame(0, &frame))) {
+                    if (SUCCEEDED(frame->GetSize(&width, &height)) && width > 0 && height > 0) {
+                        ComPtr<IWICFormatConverter> converter;
+                        if (SUCCEEDED(wic_factory->CreateFormatConverter(&converter)) &&
+                            SUCCEEDED(converter->Initialize(
+                                    frame.Get(),
+                                    GUID_WICPixelFormat32bppRGBA,
+                                    WICBitmapDitherTypeNone,
+                                    nullptr,
+                                    0.0,
+                                    WICBitmapPaletteTypeCustom))) {
+                            const UINT src_row_pitch = width * 4;
+                            rgba_data.resize(static_cast<size_t>(src_row_pitch) * height);
+                            if (SUCCEEDED(converter->CopyPixels(nullptr, src_row_pitch,
+                                                                static_cast<UINT>(rgba_data.size()),
+                                                                rgba_data.data()))) {
+                                loaded = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!loaded && EndsWithTga(filename)) {
+            DecodedImage tga;
+            if (LoadTgaImage(filename, tga)) {
+                width = tga.width;
+                height = tga.height;
+                rgba_data = std::move(tga.rgba);
+                loaded = true;
+            }
+        }
+
+        if (!loaded || width == 0 || height == 0 || rgba_data.empty()) {
+            return {};
+        }
+
+        const UINT src_row_pitch = width * 4;
+
+        D3D12_RESOURCE_DESC tex_desc = {};
+        tex_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        tex_desc.Alignment = 0;
+        tex_desc.Width = width;
+        tex_desc.Height = height;
+        tex_desc.DepthOrArraySize = 1;
+        tex_desc.MipLevels = 1;
+        tex_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        tex_desc.SampleDesc.Count = 1;
+        tex_desc.SampleDesc.Quality = 0;
+        tex_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        tex_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+        const D3D12_HEAP_PROPERTIES default_heap_props = detail::HeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+        ComPtr<ID3D12Resource> resource;
+        if (FAILED(device_->CreateCommittedResource(
+                &default_heap_props, D3D12_HEAP_FLAG_NONE, &tex_desc,
+                D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource)))) {
+            return {};
+        }
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT num_rows = 0;
+        UINT64 row_size_in_bytes = 0;
+        UINT64 upload_size = 0;
+        device_->GetCopyableFootprints(&tex_desc, 0, 1, 0, &footprint, &num_rows, &row_size_in_bytes, &upload_size);
+
+        const D3D12_HEAP_PROPERTIES upload_heap_props = detail::HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
+        const D3D12_RESOURCE_DESC upload_desc = detail::BufferDesc(upload_size);
+        ComPtr<ID3D12Resource> upload;
+        if (FAILED(device_->CreateCommittedResource(
+                &upload_heap_props, D3D12_HEAP_FLAG_NONE, &upload_desc,
+                D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload)))) {
+            return {};
+        }
+
+        void *mapped = nullptr;
+        if (FAILED(upload->Map(0, nullptr, &mapped))) {
+            return {};
+        }
+        std::memset(mapped, 0, static_cast<size_t>(upload_size));
+        auto *dst_bytes = static_cast<std::uint8_t *>(mapped);
+        for (UINT y = 0; y < height; ++y) {
+            const auto *src_row = rgba_data.data() + static_cast<size_t>(y) * src_row_pitch;
+            auto *dst_row = dst_bytes + static_cast<size_t>(y) * footprint.Footprint.RowPitch;
+            std::memcpy(dst_row, src_row, src_row_pitch);
+        }
+        upload->Unmap(0, nullptr);
+
+        if (FAILED(command_allocator_[frame_index_]->Reset())) {
+            return {};
+        }
+        if (FAILED(command_list_->Reset(command_allocator_[frame_index_].Get(), nullptr))) {
+            return {};
+        }
+
+        D3D12_TEXTURE_COPY_LOCATION dst = {};
+        dst.pResource = resource.Get();
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        dst.SubresourceIndex = 0;
+
+        D3D12_TEXTURE_COPY_LOCATION src = {};
+        src.pResource = upload.Get();
+        src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        src.PlacedFootprint = footprint;
+
+        command_list_->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+        const auto barrier = detail::TransitionBarrier(
+                resource.Get(),
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        command_list_->ResourceBarrier(1, &barrier);
+
+        if (FAILED(command_list_->Close())) {
+            return {};
+        }
+
+        ID3D12CommandList *lists[] = {command_list_.Get()};
+        command_queue_->ExecuteCommandLists(static_cast<UINT>(std::size(lists)), lists);
+        WaitForPreviousFrame();
+
+        const UINT descriptor_index = next_srv_index_++;
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = srv_heap_->GetCPUDescriptorHandleForHeapStart();
+        cpu_handle.ptr += static_cast<SIZE_T>(descriptor_index) * srv_descriptor_size_;
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = srv_heap_->GetGPUDescriptorHandleForHeapStart();
+        gpu_handle.ptr += static_cast<UINT64>(descriptor_index) * srv_descriptor_size_;
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srv_desc.Texture2D.MostDetailedMip = 0;
+        srv_desc.Texture2D.MipLevels = 1;
+        srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
         device_->CreateShaderResourceView(resource.Get(), &srv_desc, cpu_handle);
 
         auto texture = std::make_shared<Texture2D>();

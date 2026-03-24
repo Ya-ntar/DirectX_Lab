@@ -54,7 +54,9 @@ target_link_libraries(DX12Test PRIVATE
         d3d12.lib
         d3dcompiler.lib
         dxgi.lib
-        dxguid.lib)
+        dxguid.lib
+        windowscodecs.lib
+        ole32.lib)
 
 # Copy shaders to output directory
 add_custom_command(

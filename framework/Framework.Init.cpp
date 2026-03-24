@@ -20,6 +20,14 @@ bool Framework::Initialize(Window *window) {
 
         window_ = window;
 
+        HRESULT co_hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        if (SUCCEEDED(co_hr)) {
+            com_initialized_ = true;
+        } else if (co_hr != RPC_E_CHANGED_MODE) {
+            std::wcerr << L"Failed to initialize COM for texture loading!" << std::endl;
+            return false;
+        }
+
 
         if (!device_manager_.Initialize()) {
             return false;
@@ -168,6 +176,10 @@ bool Framework::Initialize(Window *window) {
         command_queue_.Reset();
         device_.Reset();
         factory_.Reset();
+        if (com_initialized_) {
+            CoUninitialize();
+            com_initialized_ = false;
+        }
 
         window_ = nullptr;
     }
