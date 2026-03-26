@@ -17,6 +17,7 @@
 #include "framework/Timer.h"
 #include "framework/Window.h"
 
+
 using namespace gfw;
 
 namespace {
@@ -25,6 +26,7 @@ namespace {
         SolidColor,
         Rainbow
     };
+
 
     struct CameraConfig {
         DirectX::XMFLOAT3 position = {0.0f, 1.5f, -5.0f};
@@ -48,6 +50,17 @@ namespace {
         ControlSettings controls = {};
         std::vector<SceneObjectConfig> objects = {};
     };
+
+    void AddObjectsToConfig(AppConfig &config) {
+        SceneObjectConfig sponza_object;
+        sponza_object.name = L"Sponza textured";
+        sponza_object.obj_path = L"sponza/Sponza-master/sponza.obj";
+        sponza_object.mtl_path = L"sponza/Sponza-master/sponza.mtl";
+        sponza_object.material_mode = MaterialMode::Texture;
+        sponza_object.position = {0.0f, 0.0f, 0.0f};
+        sponza_object.scale = {1.0f, 1.0f, 1.0f};
+        config.objects.push_back(sponza_object);
+    }
 
     struct LoadedSubmesh {
         MeshBuffers *mesh = nullptr;
@@ -77,7 +90,7 @@ namespace {
             return framework.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
         }
 
-        const auto it = texture_cache.find(effective_path);
+        auto it = texture_cache.find(effective_path);
         if (it != texture_cache.end()) {
             return it->second;
         }
@@ -86,6 +99,98 @@ namespace {
         texture_cache[effective_path] = texture;
         return texture ? texture : framework.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
     }
+}
+
+
+std::vector<LoadedSubmesh> LoadModelWithCache(
+        const SceneObjectConfig &obj,
+        std::unordered_map<std::wstring, std::vector<LoadedSubmesh>> &model_cache,
+        std::vector<std::unique_ptr<MeshBuffers>> &mesh_buffers,
+        Framework &framework) {
+    const std::wstring key = obj.obj_path + L"|" + obj.mtl_path;
+
+    // ---------- Cache hit ----------
+    if (auto it = model_cache.find(key); it != model_cache.end()) {
+        return it->second;
+    }
+
+    // ---------- Load model ----------
+    ObjModelData model = MeshLoader::LoadObjModel(obj.obj_path, obj.mtl_path);
+    std::vector<LoadedSubmesh> result;
+
+    for (auto &sub: model.submeshes) {
+        if (sub.mesh.vertex_count == 0 || sub.mesh.indices.empty())
+            continue;
+
+        auto buffers = framework.CreateMeshBuffers(sub.mesh);
+        if (!buffers)
+            continue;
+
+        result.push_back({.mesh = buffers.get(), .texture_path = sub.diffuse_texture_path, .albedo = sub.albedo});
+
+        mesh_buffers.push_back(std::move(buffers));
+    }
+
+    // ---------- Cache store ----------
+    model_cache[key] = result;
+
+    return result;
+}
+
+std::vector<LoadedSubmesh> GetCubeFallback(
+        MeshBuffers *&cube_mesh,
+        std::vector<std::unique_ptr<MeshBuffers>> &mesh_buffers,
+        Framework &framework) {
+    if (!cube_mesh) {
+        auto cubeData = CubeMesh::CreateUnit().ToMeshData();
+
+        if (auto buffers = framework.CreateMeshBuffers(cubeData)) {
+            cube_mesh = buffers.get();
+            mesh_buffers.emplace_back(std::move(buffers));
+        }
+    }
+
+    if (!cube_mesh)
+        return {};
+
+    return {{
+                    .mesh = cube_mesh,
+                    .texture_path = L"",
+                    .albedo = {1, 1, 1, 1}
+            }};
+}
+
+RenderObject CreateRenderObject(
+        const SceneObjectConfig &configObj,
+        const LoadedSubmesh &sub,
+        Framework &framework,
+        std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> &texture_cache) {
+    RenderObject obj{};
+
+    obj.mesh = sub.mesh;
+    obj.world = MakeWorldMatrix(configObj.position, configObj.scale);
+    obj.uv_params = {2.0f, 2.0f, 0.08f, -0.05f};
+    obj.DisableUVAnimation();
+
+    switch (configObj.material_mode) {
+        case MaterialMode::Texture:
+            obj.texture = ResolveTexture(framework, configObj, sub.texture_path, texture_cache);
+            obj.albedo = sub.albedo;
+            break;
+
+        case MaterialMode::SolidColor:
+            obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
+            obj.albedo = configObj.solid_color;
+            break;
+
+        case MaterialMode::Rainbow:
+            obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
+            obj.albedo = {1, 1, 1, 1};
+            obj.effect_params = {1.0f, configObj.rainbow_speed, 0.0f, 0.0f};
+            break;
+    }
+
+    return obj;
 }
 
 
@@ -100,14 +205,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     config.camera.position = {0.0f, 2.0f, -8.0f};
     config.camera.target = {0.0f, 1.0f, 0.0f};
 
-    SceneObjectConfig sponza_object;
-    sponza_object.name = L"Sponza textured";
-    sponza_object.obj_path = L"sponza/Sponza-master/sponza.obj";
-    sponza_object.mtl_path = L"sponza/Sponza-master/sponza.mtl";
-    sponza_object.material_mode = MaterialMode::Texture;
-    sponza_object.position = {0.0f, 0.0f, 0.0f};
-    sponza_object.scale = {1.0f, 1.0f, 1.0f};
-    config.objects.push_back(sponza_object);
+    AddObjectsToConfig(config); // <- scene config
 
     Camera initial_camera;
     initial_camera.position = config.camera.position;
@@ -125,66 +223,15 @@ bool RunApplication(Window &window, InputDevice &input_device) {
 
         std::vector<LoadedSubmesh> submeshes;
 
-        // ---------- Helper: Load model (with caching) ----------
-        auto loadModel = [&](const SceneObjectConfig &obj) {
-            const std::wstring key = obj.obj_path + L"|" + obj.mtl_path;
-
-            if (auto it = model_cache.find(key); it != model_cache.end()) {
-                return it->second;
-            }
-
-            ObjModelData model = MeshLoader::LoadObjModel(obj.obj_path, obj.mtl_path);
-            std::vector<LoadedSubmesh> result;
-
-            for (const auto &sub: model.submeshes) {
-                if (sub.mesh.vertex_count == 0 || sub.mesh.indices.empty())
-                    continue;
-
-                auto buffers = framework.CreateMeshBuffers(sub.mesh);
-                if (!buffers)
-                    continue;
-
-                result.push_back({
-                                         .mesh = buffers.get(),
-                                         .texture_path = sub.diffuse_texture_path,
-                                         .albedo = sub.albedo
-                                 });
-
-                mesh_buffers.push_back(std::move(buffers));
-            }
-
-            model_cache[key] = result;
-            return result;
-        };
-
-        // ---------- Helper: Get cube fallback ----------
-        auto getCube = [&]() -> std::vector<LoadedSubmesh> {
-            if (!cube_mesh) {
-                auto cubeData = CubeMesh::CreateUnit().ToMeshData();
-                auto buffers = framework.CreateMeshBuffers(cubeData);
-
-                if (buffers) {
-                    cube_mesh = buffers.get();
-                    mesh_buffers.push_back(std::move(buffers));
-                }
-            }
-
-            if (!cube_mesh) return {};
-
-            return {
-                    {
-                            .mesh = cube_mesh,
-                            .texture_path = L"",
-                            .albedo = {1, 1, 1, 1}
-                    }
-            };
-        };
-
-        // ---------- Load submeshes ----------
         if (!configObj.obj_path.empty()) {
-            submeshes = loadModel(configObj);
+            submeshes = LoadModelWithCache(
+                    configObj,
+                    model_cache,
+                    mesh_buffers,
+                    framework
+            );
         } else {
-            submeshes = getCube();
+            submeshes = GetCubeFallback(cube_mesh, mesh_buffers, framework);
         }
 
         if (submeshes.empty()) {
@@ -194,38 +241,19 @@ bool RunApplication(Window &window, InputDevice &input_device) {
         }
 
         // ---------- Create render objects ----------
-        for (const auto &sub: submeshes) {
-            RenderObject obj{};
-
-            obj.mesh = sub.mesh;
-            obj.world = MakeWorldMatrix(configObj.position, configObj.scale);
-            obj.uv_params = {2.0f, 2.0f, 0.08f, -0.05f};
-            obj.DisableUVAnimation();
-
-            switch (configObj.material_mode) {
-                case MaterialMode::Texture:
-                    obj.texture = ResolveTexture(framework, configObj, sub.texture_path, texture_cache);
-                    obj.albedo = sub.albedo;
-                    break;
-
-                case MaterialMode::SolidColor:
-                    obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
-                    obj.albedo = configObj.solid_color;
-                    break;
-
-                case MaterialMode::Rainbow:
-                    obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
-                    obj.albedo = {1, 1, 1, 1};
-                    obj.effect_params = {1.0f, configObj.rainbow_speed, 0.0f, 0.0f};
-                    break;
-            }
-
-            objects.push_back(std::move(obj));
+        for (auto &sub: submeshes) {
+            objects.push_back(CreateRenderObject(
+                    configObj,
+                    sub,
+                    framework,
+                    texture_cache
+            ));
         }
     }
 
     if (objects.empty()) {
-        std::wcerr << L"No valid scene objects configured." << std::endl;
+        std::wcerr << L"No valid scene objects configured." <<
+                   std::endl;
         return false;
     }
 
@@ -245,13 +273,12 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     PushLightsToRenderingSystem(light_control, rendering_system);
 
     PrintSceneLightingHelp();
-
     while (window.IsRunning()) {
         window.ProcessMessages();
         timer.Tick();
-        const float dt = static_cast<float>(timer.GetDeltaTime());
-
-        game.Update(window, input_device, framework, dt);
+        auto dt = static_cast<float>(timer.GetDeltaTime());
+        game.Update(window, input_device, framework, dt
+        );
         ApplyLightControls(input_device, framework.GetSceneState().camera, dt, light_control);
         PushLightsToRenderingSystem(light_control, rendering_system);
 
@@ -261,6 +288,8 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     }
 
     rendering_system.Shutdown();
+
     framework.Shutdown();
     return true;
 }
+
