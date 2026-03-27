@@ -34,7 +34,8 @@ namespace gfw {
         ComPtr<ID3D12Resource> index_buffer;
         D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view = {};
         D3D12_INDEX_BUFFER_VIEW index_buffer_view = {};
-        UINT index_count = 0;
+        UINT vertex_count = 0;  // Number of vertices (used for non-indexed draws)
+        UINT index_count = 0;   // Number of indices (used for indexed draws)
         D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     };
 }

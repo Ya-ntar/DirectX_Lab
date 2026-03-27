@@ -27,7 +27,13 @@ bool RenderingSystem::Initialize(Framework *framework, UINT width, UINT height) 
     if (!CreateGeometryPipeline()) {
         return false;
     }
+    if (!CreateGeometryTessPipeline()) {
+        return false;
+    }
     if (!CreateLightingPipeline()) {
+        return false;
+    }
+    if (!CreateGBufferDebugPipeline()) {
         return false;
     }
     if (!CreateConstantBuffers()) {
@@ -44,14 +50,21 @@ void RenderingSystem::Shutdown() {
     if (lighting_cb_) {
         lighting_cb_->Unmap(0, nullptr);
     }
+    if (gbuffer_debug_cb_) {
+        gbuffer_debug_cb_->Unmap(0, nullptr);
+    }
     geometry_cb_mapped_ = nullptr;
     lighting_cb_mapped_ = nullptr;
+    gbuffer_debug_cb_mapped_ = nullptr;
     geometry_cb_.Reset();
     lighting_cb_.Reset();
+    gbuffer_debug_cb_.Reset();
     geometry_pso_.Reset();
     geometry_root_sig_.Reset();
     lighting_pso_.Reset();
     lighting_root_sig_.Reset();
+    gbuffer_debug_pso_.Reset();
+    gbuffer_debug_root_sig_.Reset();
     gbuffer_.Shutdown();
     fallback_white_.reset();
     framework_ = nullptr;
@@ -80,7 +93,12 @@ void RenderingSystem::Render(const std::vector<RenderObject> &objects, float) {
         return;
     }
     GeometryPass(objects);
-    LightingPass();
+
+    if (gbuffer_debug_mode_ != GBufferDebugMode::None) {
+        GBufferDebugPass();
+    } else {
+        LightingPass();
+    }
 }
 
 bool RenderingSystem::CreateGeometryPipeline() {
@@ -205,6 +223,153 @@ bool RenderingSystem::CreateGeometryPipeline() {
     return SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_pso_)));
 }
 
+bool RenderingSystem::CreateGeometryTessPipeline() {
+    ID3D12Device *device = framework_->GetDevice();
+    UINT flags = 0;
+#ifdef _DEBUG
+    flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+    Microsoft::WRL::ComPtr<ID3DBlob> vs_blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> hs_blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> ds_blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> ps_blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> error_blob;
+
+    // Compile vertex shader
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferVertex.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
+                                  flags, 0, &vs_blob, &error_blob))) {
+        if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+        return false;
+    }
+    error_blob.Reset();
+
+    // Compile hull shader
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessHull.hlsl", nullptr, nullptr, "HSMain", "hs_5_0",
+                                  flags, 0, &hs_blob, &error_blob))) {
+        if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+        return false;
+    }
+    error_blob.Reset();
+
+    // Compile domain shader
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessDomain.hlsl", nullptr, nullptr, "DSMain", "ds_5_0",
+                                  flags, 0, &ds_blob, &error_blob))) {
+        if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+        return false;
+    }
+    error_blob.Reset();
+
+    // Compile pixel shader
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferPixel.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
+                                  flags, 0, &ps_blob, &error_blob))) {
+        if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+        return false;
+    }
+
+    D3D12_DESCRIPTOR_RANGE srv_range = {};
+    srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srv_range.NumDescriptors = 1;
+    srv_range.BaseShaderRegister = 0;
+    srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER root_params[2] = {};
+    root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    root_params[0].Descriptor.ShaderRegister = 0;
+    root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[1].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_STATIC_SAMPLER_DESC sampler = {};
+    sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    sampler.MaxLOD = D3D12_FLOAT32_MAX;
+    sampler.ShaderRegister = 0;
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_ROOT_SIGNATURE_DESC rs_desc = {};
+    rs_desc.NumParameters = 2;
+    rs_desc.pParameters = root_params;
+    rs_desc.NumStaticSamplers = 1;
+    rs_desc.pStaticSamplers = &sampler;
+    rs_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    Microsoft::WRL::ComPtr<ID3DBlob> signature_blob;
+    if (FAILED(D3D12SerializeRootSignature(&rs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &error_blob))) {
+        return false;
+    }
+    if (FAILED(device->CreateRootSignature(0, signature_blob->GetBufferPointer(), signature_blob->GetBufferSize(),
+                                           IID_PPV_ARGS(&geometry_tess_root_sig_)))) {
+        return false;
+    }
+
+    const std::array<D3D12_INPUT_ELEMENT_DESC, 3> input_layout = {
+        D3D12_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        D3D12_INPUT_ELEMENT_DESC{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        D3D12_INPUT_ELEMENT_DESC{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    };
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+    pso.pRootSignature = geometry_tess_root_sig_.Get();
+    pso.VS = {vs_blob->GetBufferPointer(), vs_blob->GetBufferSize()};
+    pso.HS = {hs_blob->GetBufferPointer(), hs_blob->GetBufferSize()};
+    pso.DS = {ds_blob->GetBufferPointer(), ds_blob->GetBufferSize()};
+    pso.PS = {ps_blob->GetBufferPointer(), ps_blob->GetBufferSize()};
+    pso.InputLayout = {input_layout.data(), static_cast<UINT>(input_layout.size())};
+    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+    pso.SampleMask = UINT_MAX;
+    pso.SampleDesc.Count = 1;
+    pso.NumRenderTargets = GBuffer::kTargetCount;
+    pso.RTVFormats[0] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    pso.RTVFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    pso.RTVFormats[2] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    pso.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+
+    D3D12_RASTERIZER_DESC rasterizer = {};
+    rasterizer.FillMode = D3D12_FILL_MODE_SOLID;
+    rasterizer.CullMode = D3D12_CULL_MODE_NONE;
+    rasterizer.FrontCounterClockwise = FALSE;
+    rasterizer.DepthClipEnable = TRUE;
+    rasterizer.MultisampleEnable = FALSE;
+    rasterizer.AntialiasedLineEnable = FALSE;
+    rasterizer.ForcedSampleCount = 0;
+    rasterizer.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+    pso.RasterizerState = rasterizer;
+
+    D3D12_BLEND_DESC blend = {};
+    blend.AlphaToCoverageEnable = FALSE;
+    blend.IndependentBlendEnable = FALSE;
+    D3D12_RENDER_TARGET_BLEND_DESC rt_blend = {};
+    rt_blend.BlendEnable = FALSE;
+    rt_blend.LogicOpEnable = FALSE;
+    rt_blend.SrcBlend = D3D12_BLEND_ONE;
+    rt_blend.DestBlend = D3D12_BLEND_ZERO;
+    rt_blend.BlendOp = D3D12_BLEND_OP_ADD;
+    rt_blend.SrcBlendAlpha = D3D12_BLEND_ONE;
+    rt_blend.DestBlendAlpha = D3D12_BLEND_ZERO;
+    rt_blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    rt_blend.LogicOp = D3D12_LOGIC_OP_NOOP;
+    rt_blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    for (UINT i = 0; i < 8; ++i) {
+        blend.RenderTarget[i] = rt_blend;
+    }
+    pso.BlendState = blend;
+
+    D3D12_DEPTH_STENCIL_DESC depth = {};
+    depth.DepthEnable = TRUE;
+    depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    depth.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+    depth.StencilEnable = FALSE;
+    pso.DepthStencilState = depth;
+
+    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_tess_pso_)));
+}
+
 bool RenderingSystem::CreateLightingPipeline() {
     ID3D12Device *device = framework_->GetDevice();
     UINT flags = 0;
@@ -311,6 +476,117 @@ bool RenderingSystem::CreateLightingPipeline() {
     return SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&lighting_pso_)));
 }
 
+bool RenderingSystem::CreateGBufferDebugPipeline() {
+    ID3D12Device *device = framework_->GetDevice();
+    UINT flags = 0;
+#ifdef _DEBUG
+    flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+    Microsoft::WRL::ComPtr<ID3DBlob> vs_blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> ps_blob;
+    Microsoft::WRL::ComPtr<ID3DBlob> error_blob;
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferDebug.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
+                                  flags, 0, &vs_blob, &error_blob))) {
+        if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+        return false;
+    }
+    error_blob.Reset();
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferDebug.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
+                                  flags, 0, &ps_blob, &error_blob))) {
+        if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
+        return false;
+    }
+
+    D3D12_DESCRIPTOR_RANGE srv_range = {};
+    srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srv_range.NumDescriptors = 3;
+    srv_range.BaseShaderRegister = 0;
+    srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER root_params[2] = {};
+    root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    root_params[0].Descriptor.ShaderRegister = 0;
+    root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[1].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_STATIC_SAMPLER_DESC sampler = {};
+    sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    sampler.MaxLOD = D3D12_FLOAT32_MAX;
+    sampler.ShaderRegister = 0;
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_ROOT_SIGNATURE_DESC rs_desc = {};
+    rs_desc.NumParameters = 2;
+    rs_desc.pParameters = root_params;
+    rs_desc.NumStaticSamplers = 1;
+    rs_desc.pStaticSamplers = &sampler;
+    rs_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    Microsoft::WRL::ComPtr<ID3DBlob> signature_blob;
+    if (FAILED(D3D12SerializeRootSignature(&rs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &error_blob))) {
+        return false;
+    }
+    if (FAILED(device->CreateRootSignature(0, signature_blob->GetBufferPointer(), signature_blob->GetBufferSize(),
+                                           IID_PPV_ARGS(&gbuffer_debug_root_sig_)))) {
+        return false;
+    }
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso = {};
+    pso.pRootSignature = gbuffer_debug_root_sig_.Get();
+    pso.VS = {vs_blob->GetBufferPointer(), vs_blob->GetBufferSize()};
+    pso.PS = {ps_blob->GetBufferPointer(), ps_blob->GetBufferSize()};
+    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    pso.SampleMask = UINT_MAX;
+    pso.SampleDesc.Count = 1;
+    pso.NumRenderTargets = 1;
+    pso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    D3D12_RASTERIZER_DESC rasterizer = {};
+    rasterizer.FillMode = D3D12_FILL_MODE_SOLID;
+    rasterizer.CullMode = D3D12_CULL_MODE_NONE;
+    rasterizer.FrontCounterClockwise = FALSE;
+    rasterizer.DepthClipEnable = TRUE;
+    rasterizer.MultisampleEnable = FALSE;
+    rasterizer.AntialiasedLineEnable = FALSE;
+    rasterizer.ForcedSampleCount = 0;
+    rasterizer.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+    pso.RasterizerState = rasterizer;
+
+    D3D12_BLEND_DESC blend = {};
+    blend.AlphaToCoverageEnable = FALSE;
+    blend.IndependentBlendEnable = FALSE;
+    D3D12_RENDER_TARGET_BLEND_DESC rt_blend = {};
+    rt_blend.BlendEnable = FALSE;
+    rt_blend.LogicOpEnable = FALSE;
+    rt_blend.SrcBlend = D3D12_BLEND_ONE;
+    rt_blend.DestBlend = D3D12_BLEND_ZERO;
+    rt_blend.BlendOp = D3D12_BLEND_OP_ADD;
+    rt_blend.SrcBlendAlpha = D3D12_BLEND_ONE;
+    rt_blend.DestBlendAlpha = D3D12_BLEND_ZERO;
+    rt_blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    rt_blend.LogicOp = D3D12_LOGIC_OP_NOOP;
+    rt_blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    blend.RenderTarget[0] = rt_blend;
+    pso.BlendState = blend;
+
+    D3D12_DEPTH_STENCIL_DESC depth = {};
+    depth.DepthEnable = FALSE;
+    depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    depth.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    depth.StencilEnable = FALSE;
+    pso.DepthStencilState = depth;
+
+    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&gbuffer_debug_pso_)));
+}
+
 bool RenderingSystem::CreateConstantBuffers() {
     const D3D12_HEAP_PROPERTIES heap = detail::HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
 
@@ -337,6 +613,19 @@ bool RenderingSystem::CreateConstantBuffers() {
         return false;
     }
     lighting_cb_mapped_ = static_cast<std::uint8_t *>(l_mapped);
+
+    const UINT gbuffer_debug_size = AlignCb(sizeof(GBufferDebugCB));
+    D3D12_RESOURCE_DESC gb_desc = detail::BufferDesc(gbuffer_debug_size);
+    if (FAILED(framework_->GetDevice()->CreateCommittedResource(
+            &heap, D3D12_HEAP_FLAG_NONE, &gb_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&gbuffer_debug_cb_)))) {
+        return false;
+    }
+    void *gb_mapped = nullptr;
+    if (FAILED(gbuffer_debug_cb_->Map(0, nullptr, &gb_mapped))) {
+        return false;
+    }
+    gbuffer_debug_cb_mapped_ = static_cast<std::uint8_t *>(gb_mapped);
+
     return true;
 }
 
@@ -353,8 +642,15 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
     gbuffer_.Clear(cmd);
     cmd->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    cmd->SetGraphicsRootSignature(geometry_root_sig_.Get());
-    cmd->SetPipelineState(geometry_pso_.Get());
+    // Choose pipeline based on tessellation setting
+    if (tessellation_enabled_) {
+        cmd->SetGraphicsRootSignature(geometry_tess_root_sig_.Get());
+        cmd->SetPipelineState(geometry_tess_pso_.Get());
+    } else {
+        cmd->SetGraphicsRootSignature(geometry_root_sig_.Get());
+        cmd->SetPipelineState(geometry_pso_.Get());
+    }
+
     ID3D12DescriptorHeap *heaps[] = {framework_->GetSrvHeap()};
     cmd->SetDescriptorHeaps(1, heaps);
 
@@ -372,6 +668,7 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
         DirectX::XMStoreFloat4x4(&cb.view, view);
         DirectX::XMStoreFloat4x4(&cb.proj, proj);
         cb.albedo = obj.albedo;
+        cb.tess_params = {tessellation_min_, tessellation_max_, 0.0f, 0.0f};
         std::memcpy(geometry_cb_mapped_, &cb, sizeof(cb));
 
         cmd->SetGraphicsRootConstantBufferView(0, geometry_cb_->GetGPUVirtualAddress());
@@ -379,13 +676,19 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
             (obj.texture ? obj.texture : fallback_white_)->srv_gpu;
         cmd->SetGraphicsRootDescriptorTable(1, texture_srv);
 
-        cmd->IASetPrimitiveTopology(obj.mesh->topology);
+        // Set primitive topology based on tessellation state
+        D3D_PRIMITIVE_TOPOLOGY topo = obj.mesh->topology;
+        if (tessellation_enabled_) {
+            topo = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+        }
+        cmd->IASetPrimitiveTopology(topo);
         cmd->IASetVertexBuffers(0, 1, &obj.mesh->vertex_buffer_view);
+
         if (obj.mesh->index_buffer) {
             cmd->IASetIndexBuffer(&obj.mesh->index_buffer_view);
             cmd->DrawIndexedInstanced(obj.mesh->index_count, 1, 0, 0, 0);
         } else {
-            cmd->DrawInstanced(obj.mesh->index_count, 1, 0, 0);
+            cmd->DrawInstanced(obj.mesh->vertex_count, 1, 0, 0);
         }
     }
     gbuffer_.TransitionToShaderResources(cmd);
@@ -402,6 +705,14 @@ void RenderingSystem::LightingPass() {
     cmd->ClearRenderTargetView(back_rtv, clear_color, 0, nullptr);
 
     LightingCB cb = {};
+
+    // ===== IMPORTANT: All light positions and directions MUST be in VIEW-SPACE =====
+    // This is critical for deferred rendering to work correctly:
+    // - GBuffer contains positions and normals in VIEW-SPACE
+    // - Lights must also be in VIEW-SPACE to match
+    // - No additional transformations needed in lighting shader
+
+    // Transform directional light direction from world-space to view-space
     const DirectX::XMVECTOR dir_world = DirectX::XMVectorSet(
         directional_light_.direction.x,
         directional_light_.direction.y,
@@ -416,6 +727,7 @@ void RenderingSystem::LightingPass() {
     cb.point_count = static_cast<UINT>(point_lights_.size());
     cb.spot_count = static_cast<UINT>(spot_lights_.size());
 
+    // Transform point light positions from world-space to view-space
     for (UINT i = 0; i < cb.point_count; ++i) {
         const DirectX::XMVECTOR point_world = DirectX::XMVectorSet(
             point_lights_[i].position.x,
@@ -428,6 +740,8 @@ void RenderingSystem::LightingPass() {
         cb.point_lights[i].pos_range = {point_view_f3.x, point_view_f3.y, point_view_f3.z, point_lights_[i].range};
         cb.point_lights[i].color_intensity = {point_lights_[i].color.x, point_lights_[i].color.y, point_lights_[i].color.z, point_lights_[i].intensity};
     }
+
+    // Transform spot light positions and directions from world-space to view-space
     for (UINT i = 0; i < cb.spot_count; ++i) {
         const DirectX::XMVECTOR spot_pos_world = DirectX::XMVectorSet(
             spot_lights_[i].position.x,
@@ -457,6 +771,30 @@ void RenderingSystem::LightingPass() {
     ID3D12DescriptorHeap *heaps[] = {gbuffer_.GetSrvHeap()};
     cmd->SetDescriptorHeaps(1, heaps);
     cmd->SetGraphicsRootConstantBufferView(0, lighting_cb_->GetGPUVirtualAddress());
+    cmd->SetGraphicsRootDescriptorTable(1, gbuffer_.GetSrv(0));
+    cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    cmd->DrawInstanced(3, 1, 0, 0);
+}
+
+void RenderingSystem::GBufferDebugPass() {
+    ID3D12GraphicsCommandList *cmd = framework_->GetCommandList();
+
+    D3D12_CPU_DESCRIPTOR_HANDLE back_rtv = framework_->GetCurrentBackBufferRtv();
+    cmd->OMSetRenderTargets(1, &back_rtv, FALSE, nullptr);
+    const float clear_color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    cmd->ClearRenderTargetView(back_rtv, clear_color, 0, nullptr);
+
+    GBufferDebugCB cb = {};
+    cb.mode = static_cast<INT>(gbuffer_debug_mode_);
+    std::memcpy(gbuffer_debug_cb_mapped_, &cb, sizeof(cb));
+
+    cmd->SetGraphicsRootSignature(gbuffer_debug_root_sig_.Get());
+    cmd->SetPipelineState(gbuffer_debug_pso_.Get());
+    ID3D12DescriptorHeap *heaps[] = {gbuffer_.GetSrvHeap()};
+    cmd->SetDescriptorHeaps(1, heaps);
+    cmd->SetGraphicsRootConstantBufferView(0, gbuffer_debug_cb_->GetGPUVirtualAddress());
+    // Pass all three GBuffer textures (Position, Normal, Albedo) at once
+    // The descriptor table starts at index 0 which contains all three SRVs
     cmd->SetGraphicsRootDescriptorTable(1, gbuffer_.GetSrv(0));
     cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     cmd->DrawInstanced(3, 1, 0, 0);

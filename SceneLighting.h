@@ -50,6 +50,8 @@ struct LightControlState {
 
 void PrintSceneLightingHelp();
 
+void PrintTessellationAndDebugHelp();
+
 void SetupDefaultLocalLights(LightControlState &state);
 
 void ApplyLightControls(InputDevice &input, const Camera &camera, float dt, LightControlState &state);

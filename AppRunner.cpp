@@ -273,14 +273,74 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     PushLightsToRenderingSystem(light_control, rendering_system);
 
     PrintSceneLightingHelp();
+    PrintTessellationAndDebugHelp();
+
+    bool tess_key_pressed = false;
+    bool debug_0_pressed = false, debug_1_pressed = false, debug_2_pressed = false, debug_3_pressed = false, debug_4_pressed = false;
+
     while (window.IsRunning()) {
         window.ProcessMessages();
         timer.Tick();
         auto dt = static_cast<float>(timer.GetDeltaTime());
-        game.Update(window, input_device, framework, dt
-        );
+        game.Update(window, input_device, framework, dt);
         ApplyLightControls(input_device, framework.GetSceneState().camera, dt, light_control);
         PushLightsToRenderingSystem(light_control, rendering_system);
+
+        // Tessellation toggle (T key)
+        bool t_pressed = input_device.IsKeyDown(Keys::T);
+        if (t_pressed && !tess_key_pressed) {
+            rendering_system.SetTessellationEnabled(!rendering_system.IsTessellationEnabled());
+            std::cout << "Tessellation: " << (rendering_system.IsTessellationEnabled() ? "ENABLED" : "DISABLED") << std::endl;
+            tess_key_pressed = true;
+        } else if (!t_pressed) {
+            tess_key_pressed = false;
+        }
+
+        // GBuffer debug modes
+        bool d0_pressed = input_device.IsKeyDown(Keys::D0);
+        if (d0_pressed && !debug_0_pressed) {
+            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::None);
+            std::cout << "GBuffer Debug: OFF" << std::endl;
+            debug_0_pressed = true;
+        } else if (!d0_pressed) {
+            debug_0_pressed = false;
+        }
+
+        bool d1_pressed = input_device.IsKeyDown(Keys::D1);
+        if (d1_pressed && !debug_1_pressed) {
+            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Position);
+            std::cout << "GBuffer Debug: POSITION" << std::endl;
+            debug_1_pressed = true;
+        } else if (!d1_pressed) {
+            debug_1_pressed = false;
+        }
+
+        bool d2_pressed = input_device.IsKeyDown(Keys::D2);
+        if (d2_pressed && !debug_2_pressed) {
+            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Normal);
+            std::cout << "GBuffer Debug: NORMAL" << std::endl;
+            debug_2_pressed = true;
+        } else if (!d2_pressed) {
+            debug_2_pressed = false;
+        }
+
+        bool d3_pressed = input_device.IsKeyDown(Keys::D3);
+        if (d3_pressed && !debug_3_pressed) {
+            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Albedo);
+            std::cout << "GBuffer Debug: ALBEDO" << std::endl;
+            debug_3_pressed = true;
+        } else if (!d3_pressed) {
+            debug_3_pressed = false;
+        }
+
+        bool d4_pressed = input_device.IsKeyDown(Keys::D4);
+        if (d4_pressed && !debug_4_pressed) {
+            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Depth);
+            std::cout << "GBuffer Debug: DEPTH (from Position.Z)" << std::endl;
+            debug_4_pressed = true;
+        } else if (!d4_pressed) {
+            debug_4_pressed = false;
+        }
 
         framework.BeginFrame();
         rendering_system.Render(objects, static_cast<float>(timer.GetTotalTime()));

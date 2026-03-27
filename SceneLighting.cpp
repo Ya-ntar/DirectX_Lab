@@ -38,6 +38,15 @@ void PrintSceneLightingHelp() {
                << L"  Directional: R/Y + T/F/G/H - sun direction (world)\n";
 }
 
+void PrintTessellationAndDebugHelp() {
+    std::wcout << L"\nTessellation and Debug Visualization:\n"
+               << L"  T - toggle tessellation ON/OFF\n"
+               << L"  0 - normal lighting (exit debug mode)\n"
+               << L"  1 - visualize Position buffer\n"
+               << L"  2 - visualize Normal buffer\n"
+               << L"  3 - visualize Albedo buffer\n";
+}
+
 void SetupDefaultLocalLights(LightControlState &state) {
     state.point_lights = {
         {{-8.0f, 3.0f, -1.0f}, 12.0f, {1.0f, 0.7f, 0.5f}, 2.2f},

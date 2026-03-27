@@ -14,6 +14,15 @@ public:
     static constexpr UINT kMaxPointLights = 16;
     static constexpr UINT kMaxSpotLights = 8;
 
+    // GBuffer visualization modes
+    enum class GBufferDebugMode {
+        None = -1,
+        Position = 0,
+        Normal = 1,
+        Albedo = 2,
+        Depth = 3
+    };
+
     bool Initialize(Framework *framework, UINT width, UINT height);
     void Shutdown();
 
@@ -23,12 +32,25 @@ public:
 
     void Render(const std::vector<RenderObject> &objects, float total_time);
 
+    // Tessellation control
+    void SetTessellationEnabled(bool enabled) { tessellation_enabled_ = enabled; }
+    void SetTessellationParams(float min_level, float max_level) {
+        tessellation_min_ = min_level;
+        tessellation_max_ = max_level;
+    }
+    bool IsTessellationEnabled() const { return tessellation_enabled_; }
+
+    // GBuffer visualization
+    void SetGBufferDebugMode(GBufferDebugMode mode) { gbuffer_debug_mode_ = mode; }
+    GBufferDebugMode GetGBufferDebugMode() const { return gbuffer_debug_mode_; }
+
 private:
     struct GeometryCB {
         DirectX::XMFLOAT4X4 world = {};
         DirectX::XMFLOAT4X4 view = {};
         DirectX::XMFLOAT4X4 proj = {};
         DirectX::XMFLOAT4 albedo = {1.0f, 1.0f, 1.0f, 1.0f};
+        DirectX::XMFLOAT4 tess_params = {1.0f, 16.0f, 0.0f, 0.0f};
     };
 
     struct PointLightGpu {
@@ -54,11 +76,14 @@ private:
     };
 
     bool CreateGeometryPipeline();
+    bool CreateGeometryTessPipeline();
     bool CreateLightingPipeline();
+    bool CreateGBufferDebugPipeline();
     bool CreateConstantBuffers();
 
     void GeometryPass(const std::vector<RenderObject> &objects);
     void LightingPass();
+    void GBufferDebugPass();
 
     Framework *framework_ = nullptr;
     GBuffer gbuffer_ = {};
@@ -68,12 +93,28 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> geometry_root_sig_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> geometry_pso_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> geometry_tess_root_sig_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> geometry_tess_pso_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> lighting_root_sig_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> lighting_pso_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> gbuffer_debug_root_sig_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gbuffer_debug_pso_;
     Microsoft::WRL::ComPtr<ID3D12Resource> geometry_cb_;
     Microsoft::WRL::ComPtr<ID3D12Resource> lighting_cb_;
+    Microsoft::WRL::ComPtr<ID3D12Resource> gbuffer_debug_cb_;
     std::uint8_t *geometry_cb_mapped_ = nullptr;
     std::uint8_t *lighting_cb_mapped_ = nullptr;
+    std::uint8_t *gbuffer_debug_cb_mapped_ = nullptr;
     std::shared_ptr<Texture2D> fallback_white_ = {};
+
+    struct GBufferDebugCB {
+        INT mode = -1;
+        DirectX::XMFLOAT3 _pad = {};
+    };
+
+    bool tessellation_enabled_ = false;
+    float tessellation_min_ = 1.0f;
+    float tessellation_max_ = 16.0f;
+    GBufferDebugMode gbuffer_debug_mode_ = GBufferDebugMode::None;
 };
 }

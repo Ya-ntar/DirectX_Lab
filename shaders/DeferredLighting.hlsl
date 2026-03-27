@@ -16,11 +16,13 @@ struct SpotLightGpu
 
 cbuffer LightingCB : register(b0)
 {
-    float4 dirLightDir;
-    float4 dirLightColorIntensity;
-    float4 ambientColor;
-    PointLightGpu pointLights[MAX_POINT_LIGHTS];
-    SpotLightGpu spotLights[MAX_SPOT_LIGHTS];
+    // All light positions and directions are in VIEW-SPACE coordinates
+    // This allows us to compute lighting directly without additional transformations
+    float4 dirLightDir;              // Direction of directional light (in view-space)
+    float4 dirLightColorIntensity;   // Color and intensity of directional light
+    float4 ambientColor;             // Ambient contribution
+    PointLightGpu pointLights[MAX_POINT_LIGHTS];   // Point lights (positions in view-space)
+    SpotLightGpu spotLights[MAX_SPOT_LIGHTS];      // Spot lights (positions/directions in view-space)
     uint pointCount;
     uint spotCount;
     float2 _pad;
@@ -86,13 +88,15 @@ float3 EvaluateSpot(float3 N, float3 posV, float3 albedo, SpotLightGpu light)
 
 float4 PSMain(VSOutput input) : SV_TARGET
 {
-    float3 posV = gPosition.Sample(gSampler, input.uv).xyz;
-    float3 normalV = normalize(gNormal.Sample(gSampler, input.uv).xyz);
+    // All data from GBuffer is in VIEW-SPACE coordinates
+    float3 posV = gPosition.Sample(gSampler, input.uv).xyz;  // Pixel position in view-space
+    float3 normalV = normalize(gNormal.Sample(gSampler, input.uv).xyz);  // Pixel normal in view-space
     float3 albedo = gAlbedo.Sample(gSampler, input.uv).rgb;
     if (dot(normalV, normalV) < 1e-5f) {
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
+    // View direction: from pixel towards camera (camera is at origin in view-space)
     float3 V = normalize(-posV);
     float3 color = ambientColor.rgb * albedo;
     color += EvaluateDirectional(normalV, V, albedo);
