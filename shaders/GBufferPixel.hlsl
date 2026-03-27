@@ -13,9 +13,11 @@ SamplerState baseColorSampler : register(s0);
 struct PSInput
 {
     float4 posH : SV_POSITION;
-    float3 posV : TEXCOORD0;  // Position in view-space (camera-relative)
-    float3 normalV : TEXCOORD1; // Normal in view-space
+    float3 posV : TEXCOORD0;       // Position in view-space
+    float3 normalV : TEXCOORD1;    // Normal in view-space
     float2 uv : TEXCOORD2;
+    float3 posW : TEXCOORD3;       // World-space position (unused but passed through)
+    float3 normalW : TEXCOORD4;    // World-space normal (unused but passed through)
 };
 
 struct PSOutput

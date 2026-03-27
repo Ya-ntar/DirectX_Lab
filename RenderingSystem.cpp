@@ -679,7 +679,8 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
         // Set primitive topology based on tessellation state
         D3D_PRIMITIVE_TOPOLOGY topo = obj.mesh->topology;
         if (tessellation_enabled_) {
-            topo = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+            // Use 3-control-point patch list for triangle tessellation
+            topo = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
         }
         cmd->IASetPrimitiveTopology(topo);
         cmd->IASetVertexBuffers(0, 1, &obj.mesh->vertex_buffer_view);

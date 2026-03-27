@@ -13,50 +13,51 @@ struct VSOutput
     float3 posV : TEXCOORD0;
     float3 normalV : TEXCOORD1;
     float2 uv : TEXCOORD2;
+    float3 posW : TEXCOORD3;      // World-space position
+    float3 normalW : TEXCOORD4;    // World-space normal
 };
 
 struct HSConstantData
 {
-    float edges[4] : SV_TessFactor;
-    float inside[2] : SV_InsideTessFactor;
+    float edges[3] : SV_TessFactor;
+    float inside : SV_InsideTessFactor;
 };
 
-struct PSOutput
+[domain("tri")]
+VSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 3> patch, float3 bary : SV_DomainLocation)
 {
-    float4 posV : SV_TARGET0;
-    float4 normalV : SV_TARGET1;
-    float4 albedoOut : SV_TARGET2;
-};
+    // bary contains barycentric coordinates (u, v, w) where u + v + w = 1.0
+    float u = bary.x;
+    float v = bary.y;
+    float w = bary.z;
 
-[domain("quad")]
-VSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 4> patch, float2 uv : SV_DomainLocation)
-{
-    float u = uv.x;
-    float v = uv.y;
+    // Interpolate in world-space using barycentric coordinates
+    float3 interpolated_posW = patch[0].posW * u + patch[1].posW * v + patch[2].posW * w;
+    float3 interpolated_normalW = patch[0].normalW * u + patch[1].normalW * v + patch[2].normalW * w;
+    float2 interpolated_uv = patch[0].uv * u + patch[1].uv * v + patch[2].uv * w;
 
-    float weights[4] = {
-        (1.0f - u) * (1.0f - v),
-        u * (1.0f - v),
-        (1.0f - u) * v,
-        u * v
-    };
+    // Normalize the interpolated world-space normal
+    float3 normalW = normalize(interpolated_normalW);
+
+    // Transform world-space position to view-space
+    float4 posV = mul(float4(interpolated_posW, 1.0f), view);
+
+    // Transform world-space normal to view-space
+    float3 normalV = mul(float4(normalW, 0.0f), view).xyz;
 
     VSOutput result;
-    result.posH = float4(0.0f, 0.0f, 0.0f, 0.0f);
-    result.posV = float3(0.0f, 0.0f, 0.0f);
-    result.normalV = float3(0.0f, 0.0f, 0.0f);
-    result.uv = float2(0.0f, 0.0f);
+    result.posW = interpolated_posW;
+    result.posV = posV.xyz;
+    result.normalW = normalW;
+    result.normalV = normalV;
+    result.uv = interpolated_uv;
 
-    for (int i = 0; i < 4; ++i)
-    {
-        result.posV += patch[i].posV * weights[i];
-        result.normalV += patch[i].normalV * weights[i];
-        result.uv += patch[i].uv * weights[i];
-    }
-
-    result.normalV = normalize(result.normalV);
-    result.posH = float4(result.posV, 1.0f);
+    // Apply projection matrix to get screen-space position
+    result.posH = mul(posV, proj);
 
     return result;
 }
+
+
+
 

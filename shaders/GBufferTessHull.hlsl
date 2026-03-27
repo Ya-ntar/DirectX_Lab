@@ -13,38 +13,42 @@ struct VSOutput
     float3 posV : TEXCOORD0;
     float3 normalV : TEXCOORD1;
     float2 uv : TEXCOORD2;
+    float3 posW : TEXCOORD3;      // World-space position
+    float3 normalW : TEXCOORD4;    // World-space normal
 };
 
 struct HSConstantData
 {
-    float edges[4] : SV_TessFactor;
-    float inside[2] : SV_InsideTessFactor;
+    float edges[3] : SV_TessFactor;
+    float inside : SV_InsideTessFactor;
 };
 
-HSConstantData HSConst(InputPatch<VSOutput, 4> patch)
+HSConstantData HSConst(InputPatch<VSOutput, 3> patch)
 {
     HSConstantData const_data;
 
     float tess = clamp((tessParams.x + tessParams.y) * 0.5f, tessParams.x, tessParams.y);
     tess = max(tess, 1.0f);
 
+    // For triangles: 3 edge factors
     const_data.edges[0] = tess;
     const_data.edges[1] = tess;
     const_data.edges[2] = tess;
-    const_data.edges[3] = tess;
-    const_data.inside[0] = tess;
-    const_data.inside[1] = tess;
+    // And 1 inside factor
+    const_data.inside = tess;
     return const_data;
 }
 
-[domain("quad")]
+[domain("tri")]
 [partitioning("integer")]
 [outputtopology("triangle_cw")]
-[outputcontrolpoints(4)]
+[outputcontrolpoints(3)]
 [patchconstantfunc("HSConst")]
-VSOutput HSMain(InputPatch<VSOutput, 4> patch, uint cp_id : SV_OutputControlPointID)
+VSOutput HSMain(InputPatch<VSOutput, 3> patch, uint cp_id : SV_OutputControlPointID)
 {
     return patch[cp_id];
 }
+
+
 
 
