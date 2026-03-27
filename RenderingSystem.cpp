@@ -60,7 +60,10 @@ void RenderingSystem::Shutdown() {
     lighting_cb_.Reset();
     gbuffer_debug_cb_.Reset();
     geometry_pso_.Reset();
+    geometry_pso_wireframe_.Reset();
     geometry_root_sig_.Reset();
+    geometry_tess_pso_.Reset();
+    geometry_tess_pso_wireframe_.Reset();
     lighting_pso_.Reset();
     lighting_root_sig_.Reset();
     gbuffer_debug_pso_.Reset();
@@ -220,7 +223,14 @@ bool RenderingSystem::CreateGeometryPipeline() {
     depth.StencilEnable = FALSE;
     pso.DepthStencilState = depth;
 
-    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_pso_)));
+    if (!SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_pso_)))) {
+        return false;
+    }
+
+    // Create wireframe version
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_wireframe = pso;
+    pso_wireframe.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso_wireframe, IID_PPV_ARGS(&geometry_pso_wireframe_)));
 }
 
 bool RenderingSystem::CreateGeometryTessPipeline() {
@@ -367,7 +377,14 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     depth.StencilEnable = FALSE;
     pso.DepthStencilState = depth;
 
-    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_tess_pso_)));
+    if (!SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_tess_pso_)))) {
+        return false;
+    }
+
+    // Create wireframe version
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_wireframe = pso;
+    pso_wireframe.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso_wireframe, IID_PPV_ARGS(&geometry_tess_pso_wireframe_)));
 }
 
 bool RenderingSystem::CreateLightingPipeline() {
@@ -645,10 +662,18 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
     // Choose pipeline based on tessellation setting
     if (tessellation_enabled_) {
         cmd->SetGraphicsRootSignature(geometry_tess_root_sig_.Get());
-        cmd->SetPipelineState(geometry_tess_pso_.Get());
+        if (render_mode_ == RenderMode::Wireframe) {
+            cmd->SetPipelineState(geometry_tess_pso_wireframe_.Get());
+        } else {
+            cmd->SetPipelineState(geometry_tess_pso_.Get());
+        }
     } else {
         cmd->SetGraphicsRootSignature(geometry_root_sig_.Get());
-        cmd->SetPipelineState(geometry_pso_.Get());
+        if (render_mode_ == RenderMode::Wireframe) {
+            cmd->SetPipelineState(geometry_pso_wireframe_.Get());
+        } else {
+            cmd->SetPipelineState(geometry_pso_.Get());
+        }
     }
 
     ID3D12DescriptorHeap *heaps[] = {framework_->GetSrvHeap()};

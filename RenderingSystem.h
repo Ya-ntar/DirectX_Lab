@@ -23,6 +23,12 @@ public:
         Depth = 3
     };
 
+    // Rendering modes
+    enum class RenderMode {
+        Solid = 0,
+        Wireframe = 1
+    };
+
     bool Initialize(Framework *framework, UINT width, UINT height);
     void Shutdown();
 
@@ -43,6 +49,11 @@ public:
     // GBuffer visualization
     void SetGBufferDebugMode(GBufferDebugMode mode) { gbuffer_debug_mode_ = mode; }
     GBufferDebugMode GetGBufferDebugMode() const { return gbuffer_debug_mode_; }
+
+    // Render mode control
+    void SetRenderMode(RenderMode mode) { render_mode_ = mode; }
+    RenderMode GetRenderMode() const { return render_mode_; }
+    void ToggleRenderMode() { render_mode_ = (render_mode_ == RenderMode::Solid) ? RenderMode::Wireframe : RenderMode::Solid; }
 
 private:
     struct GeometryCB {
@@ -93,8 +104,10 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> geometry_root_sig_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> geometry_pso_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> geometry_pso_wireframe_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> geometry_tess_root_sig_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> geometry_tess_pso_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> geometry_tess_pso_wireframe_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> lighting_root_sig_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> lighting_pso_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> gbuffer_debug_root_sig_;
@@ -116,5 +129,6 @@ private:
     float tessellation_min_ = 1.0f;
     float tessellation_max_ = 16.0f;
     GBufferDebugMode gbuffer_debug_mode_ = GBufferDebugMode::None;
+    RenderMode render_mode_ = RenderMode::Solid;
 };
 }

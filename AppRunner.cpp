@@ -276,6 +276,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     PrintTessellationAndDebugHelp();
 
     bool tess_key_pressed = false;
+    bool wireframe_key_pressed = false;
     bool debug_0_pressed = false, debug_1_pressed = false, debug_2_pressed = false, debug_3_pressed = false, debug_4_pressed = false;
 
     while (window.IsRunning()) {
@@ -294,6 +295,16 @@ bool RunApplication(Window &window, InputDevice &input_device) {
             tess_key_pressed = true;
         } else if (!t_pressed) {
             tess_key_pressed = false;
+        }
+
+        // Wireframe toggle (W key)
+        bool w_pressed = input_device.IsKeyDown(Keys::V);
+        if (w_pressed && !wireframe_key_pressed) {
+            rendering_system.ToggleRenderMode();
+            std::cout << "Render Mode: " << (rendering_system.GetRenderMode() == RenderingSystem::RenderMode::Wireframe ? "WIREFRAME" : "SOLID") << std::endl;
+            wireframe_key_pressed = true;
+        } else if (!w_pressed) {
+            wireframe_key_pressed = false;
         }
 
         // GBuffer debug modes

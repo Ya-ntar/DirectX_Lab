@@ -41,6 +41,7 @@ void PrintSceneLightingHelp() {
 void PrintTessellationAndDebugHelp() {
     std::wcout << L"\nTessellation and Debug Visualization:\n"
                << L"  T - toggle tessellation ON/OFF\n"
+               << L"  V - toggle wireframe mode\n"
                << L"  0 - normal lighting (exit debug mode)\n"
                << L"  1 - visualize Position buffer\n"
                << L"  2 - visualize Normal buffer\n"
