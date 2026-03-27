@@ -40,15 +40,11 @@ HSConstantData HSConst(InputPatch<VSOutput, 3> patch)
 }
 
 [domain("tri")]
-[partitioning("integer")]
-[outputtopology("triangle_cw")]
+[partitioning("fractional_even")]
+[outputtopology("triangle_ccw")]
 [outputcontrolpoints(3)]
 [patchconstantfunc("HSConst")]
 VSOutput HSMain(InputPatch<VSOutput, 3> patch, uint cp_id : SV_OutputControlPointID)
 {
     return patch[cp_id];
 }
-
-
-
-

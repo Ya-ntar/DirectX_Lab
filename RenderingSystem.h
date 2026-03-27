@@ -44,6 +44,7 @@ public:
         tessellation_min_ = min_level;
         tessellation_max_ = max_level;
     }
+    void SetDisplacementScale(float scale) { displacement_scale_ = scale; }
     bool IsTessellationEnabled() const { return tessellation_enabled_; }
 
     // GBuffer visualization
@@ -128,6 +129,7 @@ private:
     bool tessellation_enabled_ = false;
     float tessellation_min_ = 1.0f;
     float tessellation_max_ = 16.0f;
+    float displacement_scale_ = 0.1f;
     GBufferDebugMode gbuffer_debug_mode_ = GBufferDebugMode::None;
     RenderMode render_mode_ = RenderMode::Solid;
 };

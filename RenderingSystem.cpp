@@ -21,25 +21,32 @@ bool RenderingSystem::Initialize(Framework *framework, UINT width, UINT height) 
     if (!framework_ || !framework_->GetDevice()) {
         return false;
     }
+    std::cout << "Initializing GBuffer..." << std::endl;
     if (!gbuffer_.Initialize(framework_->GetDevice(), width, height)) {
         return false;
     }
+    std::cout << "Creating geometry pipeline..." << std::endl;
     if (!CreateGeometryPipeline()) {
         return false;
     }
+    std::cout << "Creating geometry tess pipeline..." << std::endl;
     if (!CreateGeometryTessPipeline()) {
         return false;
     }
+    std::cout << "Creating lighting pipeline..." << std::endl;
     if (!CreateLightingPipeline()) {
         return false;
     }
+    std::cout << "Creating GBuffer debug pipeline..." << std::endl;
     if (!CreateGBufferDebugPipeline()) {
         return false;
     }
+    std::cout << "Creating constant buffers..." << std::endl;
     if (!CreateConstantBuffers()) {
         return false;
     }
     fallback_white_ = framework_->CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
+    std::cout << "RenderingSystem initialized successfully." << std::endl;
     return true;
 }
 
@@ -127,7 +134,7 @@ bool RenderingSystem::CreateGeometryPipeline() {
 
     D3D12_DESCRIPTOR_RANGE srv_range = {};
     srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    srv_range.NumDescriptors = 1;
+    srv_range.NumDescriptors = 2;
     srv_range.BaseShaderRegister = 0;
     srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
@@ -138,7 +145,7 @@ bool RenderingSystem::CreateGeometryPipeline() {
     root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     root_params[1].DescriptorTable.NumDescriptorRanges = 1;
     root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
-    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -148,7 +155,7 @@ bool RenderingSystem::CreateGeometryPipeline() {
     sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
     sampler.MaxLOD = D3D12_FLOAT32_MAX;
     sampler.ShaderRegister = 0;
-    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rs_desc = {};
     rs_desc.NumParameters = 2;
@@ -223,14 +230,22 @@ bool RenderingSystem::CreateGeometryPipeline() {
     depth.StencilEnable = FALSE;
     pso.DepthStencilState = depth;
 
+    std::cout << "Creating solid pipeline state..." << std::endl;
     if (!SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_pso_)))) {
+        std::cerr << "Failed to create solid pipeline state." << std::endl;
         return false;
     }
 
     // Create wireframe version
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_wireframe = pso;
     pso_wireframe.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso_wireframe, IID_PPV_ARGS(&geometry_pso_wireframe_)));
+    std::cout << "Creating wireframe pipeline state..." << std::endl;
+    if (!SUCCEEDED(device->CreateGraphicsPipelineState(&pso_wireframe, IID_PPV_ARGS(&geometry_pso_wireframe_)))) {
+        std::cerr << "Failed to create wireframe pipeline state." << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 bool RenderingSystem::CreateGeometryTessPipeline() {
@@ -246,6 +261,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     Microsoft::WRL::ComPtr<ID3DBlob> ps_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> error_blob;
 
+    std::cout << "Compiling vertex shader..." << std::endl;
     // Compile vertex shader
     if (FAILED(D3DCompileFromFile(L"shaders/GBufferVertex.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
                                   flags, 0, &vs_blob, &error_blob))) {
@@ -254,6 +270,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     }
     error_blob.Reset();
 
+    std::cout << "Compiling hull shader..." << std::endl;
     // Compile hull shader
     if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessHull.hlsl", nullptr, nullptr, "HSMain", "hs_5_0",
                                   flags, 0, &hs_blob, &error_blob))) {
@@ -262,6 +279,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     }
     error_blob.Reset();
 
+    std::cout << "Compiling domain shader..." << std::endl;
     // Compile domain shader
     if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessDomain.hlsl", nullptr, nullptr, "DSMain", "ds_5_0",
                                   flags, 0, &ds_blob, &error_blob))) {
@@ -270,6 +288,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     }
     error_blob.Reset();
 
+    std::cout << "Compiling pixel shader..." << std::endl;
     // Compile pixel shader
     if (FAILED(D3DCompileFromFile(L"shaders/GBufferPixel.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
                                   flags, 0, &ps_blob, &error_blob))) {
@@ -277,20 +296,41 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
         return false;
     }
 
-    D3D12_DESCRIPTOR_RANGE srv_range = {};
-    srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    srv_range.NumDescriptors = 1;
-    srv_range.BaseShaderRegister = 0;
-    srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    std::cout << "Shaders compiled successfully." << std::endl;
 
-    D3D12_ROOT_PARAMETER root_params[2] = {};
+    // Texture2D SRVs must use descriptor tables; root SRV slots only support buffer SRVs.
+    D3D12_DESCRIPTOR_RANGE srv_range_t0 = {};
+    srv_range_t0.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srv_range_t0.NumDescriptors = 1;
+    srv_range_t0.BaseShaderRegister = 0;
+    srv_range_t0.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_DESCRIPTOR_RANGE srv_range_t1 = {};
+    srv_range_t1.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srv_range_t1.NumDescriptors = 1;
+    srv_range_t1.BaseShaderRegister = 1;
+    srv_range_t1.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_DESCRIPTOR_RANGE srv_range_t2 = {};
+    srv_range_t2.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srv_range_t2.NumDescriptors = 1;
+    srv_range_t2.BaseShaderRegister = 2;
+    srv_range_t2.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER root_params[4] = {};
     root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     root_params[0].Descriptor.ShaderRegister = 0;
     root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     root_params[1].DescriptorTable.NumDescriptorRanges = 1;
-    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
-    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range_t0;
+    root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    root_params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[2].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[2].DescriptorTable.pDescriptorRanges = &srv_range_t1;
+    root_params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    root_params[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[3].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[3].DescriptorTable.pDescriptorRanges = &srv_range_t2;
+    root_params[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -300,23 +340,29 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
     sampler.MaxLOD = D3D12_FLOAT32_MAX;
     sampler.ShaderRegister = 0;
-    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rs_desc = {};
-    rs_desc.NumParameters = 2;
+    rs_desc.NumParameters = 4;
     rs_desc.pParameters = root_params;
     rs_desc.NumStaticSamplers = 1;
     rs_desc.pStaticSamplers = &sampler;
     rs_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
+    std::cout << "Creating root signature..." << std::endl;
     Microsoft::WRL::ComPtr<ID3DBlob> signature_blob;
-    if (FAILED(D3D12SerializeRootSignature(&rs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &error_blob))) {
+    Microsoft::WRL::ComPtr<ID3DBlob> rs_error_blob;
+    if (FAILED(D3D12SerializeRootSignature(&rs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &rs_error_blob))) {
+        if (rs_error_blob) std::cerr << static_cast<const char *>(rs_error_blob->GetBufferPointer()) << std::endl;
         return false;
     }
     if (FAILED(device->CreateRootSignature(0, signature_blob->GetBufferPointer(), signature_blob->GetBufferSize(),
                                            IID_PPV_ARGS(&geometry_tess_root_sig_)))) {
+        std::cerr << "Failed to create root signature." << std::endl;
         return false;
     }
+
+    std::cout << "Root signature created successfully." << std::endl;
 
     const std::array<D3D12_INPUT_ELEMENT_DESC, 3> input_layout = {
         D3D12_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -377,14 +423,22 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
     depth.StencilEnable = FALSE;
     pso.DepthStencilState = depth;
 
+    std::cout << "Creating solid pipeline state..." << std::endl;
     if (!SUCCEEDED(device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&geometry_tess_pso_)))) {
+        std::cerr << "Failed to create solid pipeline state." << std::endl;
         return false;
     }
 
     // Create wireframe version
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_wireframe = pso;
     pso_wireframe.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    return SUCCEEDED(device->CreateGraphicsPipelineState(&pso_wireframe, IID_PPV_ARGS(&geometry_tess_pso_wireframe_)));
+    std::cout << "Creating wireframe pipeline state..." << std::endl;
+    if (!SUCCEEDED(device->CreateGraphicsPipelineState(&pso_wireframe, IID_PPV_ARGS(&geometry_tess_pso_wireframe_)))) {
+        std::cerr << "Failed to create wireframe pipeline state." << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 bool RenderingSystem::CreateLightingPipeline() {
@@ -693,13 +747,25 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
         DirectX::XMStoreFloat4x4(&cb.view, view);
         DirectX::XMStoreFloat4x4(&cb.proj, proj);
         cb.albedo = obj.albedo;
-        cb.tess_params = {tessellation_min_, tessellation_max_, 0.0f, 0.0f};
+        cb.tess_params = {tessellation_min_, tessellation_max_, displacement_scale_, 0.0f};
         std::memcpy(geometry_cb_mapped_, &cb, sizeof(cb));
 
         cmd->SetGraphicsRootConstantBufferView(0, geometry_cb_->GetGPUVirtualAddress());
-        const D3D12_GPU_DESCRIPTOR_HANDLE texture_srv =
-            (obj.texture ? obj.texture : fallback_white_)->srv_gpu;
-        cmd->SetGraphicsRootDescriptorTable(1, texture_srv);
+
+        // Bind textures based on pipeline type
+        D3D12_GPU_DESCRIPTOR_HANDLE base_srv = (obj.texture ? obj.texture : fallback_white_)->srv_gpu;
+
+        if (tessellation_enabled_) {
+            // For tessellation pipeline: bind base color, normal, and displacement textures
+            D3D12_GPU_DESCRIPTOR_HANDLE normal_srv = (obj.normal_texture ? obj.normal_texture : fallback_white_)->srv_gpu;
+            D3D12_GPU_DESCRIPTOR_HANDLE displacement_srv = (obj.displacement_texture ? obj.displacement_texture : fallback_white_)->srv_gpu;
+            cmd->SetGraphicsRootDescriptorTable(1, base_srv);
+            cmd->SetGraphicsRootDescriptorTable(2, normal_srv);
+            cmd->SetGraphicsRootDescriptorTable(3, displacement_srv);
+        } else {
+            // For regular pipeline: bind base color and normal textures
+            cmd->SetGraphicsRootDescriptorTable(1, base_srv);
+        }
 
         // Set primitive topology based on tessellation state
         D3D_PRIMITIVE_TOPOLOGY topo = obj.mesh->topology;

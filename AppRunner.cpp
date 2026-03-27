@@ -10,6 +10,7 @@
 #include "GameController.h"
 #include "MeshData.h"
 #include "MeshLoader.h"
+#include "PlaneMesh.h"
 #include "RenderingSystem.h"
 #include "SceneLighting.h"
 #include "framework/Framework.h"
@@ -52,6 +53,7 @@ namespace {
     };
 
     void AddObjectsToConfig(AppConfig &config) {
+/*
         SceneObjectConfig sponza_object;
         sponza_object.name = L"Sponza textured";
         sponza_object.obj_path = L"sponza/Sponza-master/sponza.obj";
@@ -59,7 +61,18 @@ namespace {
         sponza_object.material_mode = MaterialMode::Texture;
         sponza_object.position = {0.0f, 0.0f, 0.0f};
         sponza_object.scale = {1.0f, 1.0f, 1.0f};
-        config.objects.push_back(sponza_object);
+        config.objects.push_back(sponza_object);*/
+
+        // Brick plane
+        SceneObjectConfig brick_cube;
+        brick_cube.name = L"Brick Plane with Normal Map";
+        brick_cube.obj_path = L"bricks2/wall.obj";
+        brick_cube.material_mode = MaterialMode::Texture;
+        brick_cube.mtl_path = L"bricks2/wall.mtl";
+        brick_cube.texture_path = L"bricks2/bricks2.jpg";
+        brick_cube.position = {0.0f, 0.0f, 0.0f};
+        brick_cube.scale = {40.0f, 40.0f, 40.0f};
+        config.objects.push_back(brick_cube);
     }
 
     struct LoadedSubmesh {
@@ -137,24 +150,24 @@ std::vector<LoadedSubmesh> LoadModelWithCache(
     return result;
 }
 
-std::vector<LoadedSubmesh> GetCubeFallback(
-        MeshBuffers *&cube_mesh,
+std::vector<LoadedSubmesh> GetPlaneFallback(
+        MeshBuffers *&plane_mesh,
         std::vector<std::unique_ptr<MeshBuffers>> &mesh_buffers,
         Framework &framework) {
-    if (!cube_mesh) {
-        auto cubeData = CubeMesh::CreateUnit().ToMeshData();
+    if (!plane_mesh) {
+        auto planeData = PlaneMesh::CreateUnit().ToMeshData();
 
-        if (auto buffers = framework.CreateMeshBuffers(cubeData)) {
-            cube_mesh = buffers.get();
+        if (auto buffers = framework.CreateMeshBuffers(planeData)) {
+            plane_mesh = buffers.get();
             mesh_buffers.emplace_back(std::move(buffers));
         }
     }
 
-    if (!cube_mesh)
+    if (!plane_mesh)
         return {};
 
     return {{
-                    .mesh = cube_mesh,
+                    .mesh = plane_mesh,
                     .texture_path = L"",
                     .albedo = {1, 1, 1, 1}
             }};
@@ -176,6 +189,62 @@ RenderObject CreateRenderObject(
         case MaterialMode::Texture:
             obj.texture = ResolveTexture(framework, configObj, sub.texture_path, texture_cache);
             obj.albedo = sub.albedo;
+
+            // Load normal map if available
+            if (!configObj.texture_path.empty()) {
+                // Try to find matching normal map - look for _normal or _Normal in the same directory
+                std::wstring normal_map_path = configObj.texture_path;
+                size_t last_slash = normal_map_path.find_last_of(L"/\\");
+                if (last_slash != std::wstring::npos) {
+                    std::wstring dir = normal_map_path.substr(0, last_slash + 1);
+                    std::wstring filename = normal_map_path.substr(last_slash + 1);
+                    // Remove extension
+                    size_t dot_pos = filename.find_last_of(L'.');
+                    if (dot_pos != std::wstring::npos) {
+                        filename = filename.substr(0, dot_pos);
+                    }
+                    // Try common normal map naming patterns
+                    std::vector<std::wstring> normal_patterns = {
+                        filename + L"_normal.jpg",
+                        filename + L"_Normal.jpg",
+                        filename + L"_normal.png",
+                        filename + L"_Normal.png",
+                        filename + L"_n.jpg",
+                        filename + L"_n.png"
+                    };
+                    for (const auto& pattern : normal_patterns) {
+                        std::wstring test_path = dir + pattern;
+                        obj.normal_texture = ResolveTexture(framework, configObj, test_path, texture_cache);
+                        if (obj.normal_texture) break; // Found a valid normal map
+                    }
+                }
+
+                // Load displacement map if available
+                std::wstring displacement_map_path = configObj.texture_path;
+                size_t last_slash_disp = displacement_map_path.find_last_of(L"/\\");
+                if (last_slash_disp != std::wstring::npos) {
+                    std::wstring dir = displacement_map_path.substr(0, last_slash_disp + 1);
+                    std::wstring filename = displacement_map_path.substr(last_slash_disp + 1);
+                    // Remove extension
+                    size_t dot_pos = filename.find_last_of(L'.');
+                    if (dot_pos != std::wstring::npos) {
+                        filename = filename.substr(0, dot_pos);
+                    }
+                    // Try common displacement map naming patterns
+                    std::vector<std::wstring> displacement_patterns = {
+                        filename + L"_displacement.jpg",
+                        filename + L"_Displacement.jpg",
+                        filename + L"_disp.jpg",
+                        filename + L"_height.jpg",
+                        filename + L"_Height.jpg"
+                    };
+                    for (const auto& pattern : displacement_patterns) {
+                        std::wstring test_path = dir + pattern;
+                        obj.displacement_texture = ResolveTexture(framework, configObj, test_path, texture_cache);
+                        if (obj.displacement_texture) break; // Found a valid displacement map
+                    }
+                }
+            }
             break;
 
         case MaterialMode::SolidColor:
@@ -215,7 +284,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
 
     std::vector<std::unique_ptr<MeshBuffers>> mesh_buffers;
     std::unordered_map<std::wstring, std::vector<LoadedSubmesh>> model_cache;
-    MeshBuffers *cube_mesh = nullptr;
+    MeshBuffers *plane_mesh = nullptr;
     std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> texture_cache;
     std::vector<RenderObject> objects;
 
@@ -231,7 +300,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
                     framework
             );
         } else {
-            submeshes = GetCubeFallback(cube_mesh, mesh_buffers, framework);
+            submeshes = GetPlaneFallback(plane_mesh, mesh_buffers, framework);
         }
 
         if (submeshes.empty()) {
@@ -271,6 +340,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     light_control.directional = framework.GetSceneState().light;
     SetupDefaultLocalLights(light_control);
     PushLightsToRenderingSystem(light_control, rendering_system);
+    rendering_system.SetDisplacementScale(0.1f);
 
     PrintSceneLightingHelp();
     PrintTessellationAndDebugHelp();
@@ -363,4 +433,6 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     framework.Shutdown();
     return true;
 }
+
+
 

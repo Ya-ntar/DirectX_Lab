@@ -46,6 +46,8 @@ add_executable(DX12Test main.cpp
         framework/Framework.Render.cpp
         CubeMesh.h
         CubeMesh.cpp
+        PlaneMesh.h
+        PlaneMesh.cpp
         MeshData.h
         MeshLoader.h
         MeshLoader.cpp

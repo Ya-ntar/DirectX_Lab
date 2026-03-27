@@ -8,6 +8,7 @@ cbuffer GeometryCB : register(b0)
 };
 
 Texture2D baseColorTex : register(t0);
+Texture2D normalMapTex : register(t1);
 SamplerState baseColorSampler : register(s0);
 
 struct PSInput
@@ -31,10 +32,29 @@ PSOutput PSMain(PSInput input)
 {
     PSOutput o;
     float4 tex = baseColorTex.Sample(baseColorSampler, input.uv);
+
+    // Sample normal map and convert from DX format (0..1 -> -1..1)
+    float4 normalMapSample = normalMapTex.Sample(baseColorSampler, input.uv);
+    float3 normalFromMap = normalMapSample.rgb * 2.0f - 1.0f;  // Convert from [0,1] to [-1,1]
+
+    // Check if normal map is valid (not a fallback white texture)
+    // If the normal map sample is close to (1.0, 1.0, 1.0) in [0,1] range, it's likely a fallback
+    bool hasNormalMap = !(abs(normalMapSample.r - 1.0f) < 0.01f && abs(normalMapSample.g - 1.0f) < 0.01f && abs(normalMapSample.b - 1.0f) < 0.01f);
+
+    float3 finalNormal;
+    if (hasNormalMap) {
+        // Blend the sampled normal map with the mesh normal
+        // This gives a more pronounced normal map effect while preserving geometry
+        finalNormal = normalize(input.normalV + normalFromMap * 0.75f);
+    } else {
+        // Use mesh normal only
+        finalNormal = input.normalV;
+    }
+
     // Store position and normal in view-space coordinates
     // This is crucial for deferred rendering to work correctly
     o.posV = float4(input.posV, 1.0f);
-    o.normalV = float4(normalize(input.normalV), 1.0f);
+    o.normalV = float4(normalize(finalNormal), 1.0f);
     o.albedoOut = float4(tex.rgb * albedo.rgb, 1.0f);
     return o;
 }

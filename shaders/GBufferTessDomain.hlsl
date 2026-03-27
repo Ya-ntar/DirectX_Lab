@@ -7,6 +7,11 @@ cbuffer GeometryCB : register(b0)
     float4 tessParams;
 };
 
+Texture2D baseColorTex : register(t0);
+Texture2D normalMapTex : register(t1);
+Texture2D displacementTex : register(t2);
+SamplerState baseColorSampler : register(s0);
+
 struct VSOutput
 {
     float4 posH : SV_POSITION;
@@ -39,7 +44,30 @@ VSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 3> patch,
     // Normalize the interpolated world-space normal
     float3 normalW = normalize(interpolated_normalW);
 
-    // Transform world-space position to view-space
+    // Sample displacement texture
+    float4 displacementSample = displacementTex.SampleLevel(baseColorSampler, interpolated_uv, 0);
+    bool hasDisplacement = !(abs(displacementSample.r - 1.0f) < 0.01f && abs(displacementSample.g - 1.0f) < 0.01f && abs(displacementSample.b - 1.0f) < 0.01f);
+    float displacementValue = 0.0f;
+    if (hasDisplacement) {
+        displacementValue = (displacementSample.r - 0.5f) * tessParams.z;
+    }
+
+    // Sample normal map
+    float4 normalMapSample = normalMapTex.SampleLevel(baseColorSampler, interpolated_uv, 0);
+    bool hasNormalMap = !(abs(normalMapSample.r - 1.0f) < 0.01f && abs(normalMapSample.g - 1.0f) < 0.01f && abs(normalMapSample.b - 1.0f) < 0.01f);
+
+    // Determine displacement direction
+    float3 displacementNormal = normalW;
+    if (hasNormalMap) {
+        float3 normalFromMap = normalMapSample.rgb * 2.0f - 1.0f;
+        // Blend with normal map for more detailed displacement
+        displacementNormal = normalize(normalW + normalFromMap * 0.5f);
+    }
+
+    // Apply displacement
+    interpolated_posW += displacementNormal * displacementValue;
+
+    // Transform displaced world-space position to view-space
     float4 posV = mul(float4(interpolated_posW, 1.0f), view);
 
     // Transform world-space normal to view-space
@@ -57,7 +85,3 @@ VSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 3> patch,
 
     return result;
 }
-
-
-
-
