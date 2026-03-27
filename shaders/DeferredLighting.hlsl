@@ -55,11 +55,13 @@ VSOutput VSMain(uint vertexId : SV_VertexID)
 float3 EvaluateDirectional(float3 N, float3 V, float3 albedo)
 {
     float3 L = normalize(-dirLightDir.xyz);
-    float nDotL = saturate(dot(N, L));
+    // Slight wrap so micro-normal detail stays visible on rough surfaces (e.g. brick).
+    const float wrap = 0.06f;
+    float nDotL = saturate((dot(N, L) + wrap) / (1.0f + wrap));
     float3 H = normalize(L + V);
-    float spec = pow(saturate(dot(N, H)), 32.0f);
+    float spec = pow(saturate(dot(N, H)), 56.0f);
     float3 diffuse = albedo * dirLightColorIntensity.rgb * nDotL * dirLightColorIntensity.a;
-    return diffuse + spec * dirLightColorIntensity.rgb * 0.2f;
+    return diffuse + spec * dirLightColorIntensity.rgb * 0.12f;
 }
 
 float3 EvaluatePoint(float3 N, float3 posV, float3 albedo, PointLightGpu light)
@@ -69,7 +71,8 @@ float3 EvaluatePoint(float3 N, float3 posV, float3 albedo, PointLightGpu light)
     if (dist > light.posRange.w) return 0.0f;
     float3 L = toLight / max(dist, 1e-4f);
     float atten = saturate(1.0f - dist / light.posRange.w);
-    float nDotL = saturate(dot(N, L));
+    const float wrap = 0.06f;
+    float nDotL = saturate((dot(N, L) + wrap) / (1.0f + wrap));
     return albedo * light.colorIntensity.rgb * (nDotL * atten * light.colorIntensity.a);
 }
 
@@ -81,7 +84,8 @@ float3 EvaluateSpot(float3 N, float3 posV, float3 albedo, SpotLightGpu light)
     float3 L = normalize(toLight);
     float3 spotDir = normalize(-light.dirAngleCos.xyz);
     float cone = saturate((dot(L, spotDir) - light.dirAngleCos.w) / max(1.0f - light.dirAngleCos.w, 1e-4f));
-    float nDotL = saturate(dot(N, L));
+    const float wrap = 0.06f;
+    float nDotL = saturate((dot(N, L) + wrap) / (1.0f + wrap));
     float atten = saturate(1.0f - dist / light.posRange.w);
     return albedo * light.colorIntensity.rgb * (nDotL * atten * cone * light.colorIntensity.a);
 }

@@ -45,6 +45,8 @@ public:
         tessellation_max_ = max_level;
     }
     void SetDisplacementScale(float scale) { displacement_scale_ = scale; }
+    /// Extra height from normal map in tess domain (edges where tangent-space z is below 1).
+    void SetNormalDisplacementScale(float scale) { normal_displacement_scale_ = scale; }
     bool IsTessellationEnabled() const { return tessellation_enabled_; }
 
     // GBuffer visualization
@@ -126,10 +128,11 @@ private:
         DirectX::XMFLOAT3 _pad = {};
     };
 
-    bool tessellation_enabled_ = false;
-    float tessellation_min_ = 1.0f;
-    float tessellation_max_ = 16.0f;
+    bool tessellation_enabled_ = true;
+    float tessellation_min_ = 2.0f;
+    float tessellation_max_ = 8.0f;
     float displacement_scale_ = 0.1f;
+    float normal_displacement_scale_ = 0.0f;
     GBufferDebugMode gbuffer_debug_mode_ = GBufferDebugMode::None;
     RenderMode render_mode_ = RenderMode::Solid;
 };

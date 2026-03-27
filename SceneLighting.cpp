@@ -40,7 +40,7 @@ void PrintSceneLightingHelp() {
 
 void PrintTessellationAndDebugHelp() {
     std::wcout << L"\nTessellation and Debug Visualization:\n"
-               << L"  T - toggle tessellation ON/OFF\n"
+               << L"  T - toggle tessellation (starts ON; displacement only works with tessellation)\n"
                << L"  V - toggle wireframe mode\n"
                << L"  0 - normal lighting (exit debug mode)\n"
                << L"  1 - visualize Position buffer\n"
@@ -49,15 +49,21 @@ void PrintTessellationAndDebugHelp() {
 }
 
 void SetupDefaultLocalLights(LightControlState &state) {
+    state.directional.direction = {0.65f, -0.35f, 0.67f};
+    Normalize3(state.directional.direction);
+    state.directional.color = {1.0f, 1.0f, 1.0f, 0.72f};
+    state.directional.ambient = {0.045f, 0.048f, 0.052f, 1.0f};
+
     state.point_lights = {
-        {{-8.0f, 3.0f, -1.0f}, 12.0f, {1.0f, 0.7f, 0.5f}, 2.2f},
-        {{-2.0f, 2.2f, 6.0f}, 10.0f, {0.5f, 0.8f, 1.0f}, 1.8f},
-        {{6.0f, 2.8f, -5.0f}, 11.0f, {0.7f, 1.0f, 0.6f}, 2.0f},
-        {{11.0f, 3.5f, 3.0f}, 13.0f, {1.0f, 0.4f, 0.9f}, 2.1f},
+        {{0.0f, 4.5f, -5.0f}, 42.0f, {1.0f, 1.0f, 1.0f}, 1.35f},
+        {{-8.0f, 3.0f, -1.0f}, 14.0f, {1.0f, 1.0f, 1.0f}, 0.75f},
+        {{-2.0f, 2.2f, 6.0f}, 12.0f, {1.0f, 1.0f, 1.0f}, 0.65f},
+        {{6.0f, 2.8f, -5.0f}, 12.0f, {1.0f, 1.0f, 1.0f}, 0.7f},
+        {{11.0f, 3.5f, 3.0f}, 14.0f, {1.0f, 1.0f, 1.0f}, 0.72f},
     };
     state.spot_lights = {
-        {{0.0f, 8.0f, 0.0f}, 25.0f, {0.0f, -1.0f, 0.0f}, 0.88f, {1.0f, 0.95f, 0.8f}, 2.4f},
-        {{-10.0f, 5.0f, -10.0f}, 22.0f, {0.6f, -0.6f, 0.6f}, 0.90f, {0.7f, 0.8f, 1.0f}, 2.1f},
+        {{0.0f, 8.0f, 0.0f}, 25.0f, {0.0f, -1.0f, 0.0f}, 0.88f, {1.0f, 1.0f, 1.0f}, 1.1f},
+        {{-10.0f, 5.0f, -10.0f}, 22.0f, {0.6f, -0.6f, 0.6f}, 0.90f, {1.0f, 1.0f, 1.0f}, 1.0f},
     };
     state.enabled_point_count = state.point_lights.size();
     state.enabled_spot_count = state.spot_lights.size();

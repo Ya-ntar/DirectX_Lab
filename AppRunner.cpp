@@ -112,6 +112,26 @@ namespace {
         texture_cache[effective_path] = texture;
         return texture ? texture : framework.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
     }
+
+    // Load exactly this path (used for normal / displacement). ResolveTexture() must NOT be used for those,
+    // because it always prefers config.texture_path and would re-bind the albedo to every slot.
+    std::shared_ptr<Texture2D> LoadTextureByExplicitPath(
+            Framework &framework,
+            const std::wstring &path,
+            std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> &texture_cache) {
+        if (path.empty()) {
+            return {};
+        }
+        if (auto it = texture_cache.find(path); it != texture_cache.end()) {
+            return it->second;
+        }
+        std::shared_ptr<Texture2D> texture = framework.CreateTextureFromFile(path);
+        if (!texture) {
+            return {};
+        }
+        texture_cache[path] = texture;
+        return texture;
+    }
 }
 
 
@@ -186,24 +206,22 @@ RenderObject CreateRenderObject(
     obj.DisableUVAnimation();
 
     switch (configObj.material_mode) {
-        case MaterialMode::Texture:
+        case MaterialMode::Texture: {
             obj.texture = ResolveTexture(framework, configObj, sub.texture_path, texture_cache);
             obj.albedo = sub.albedo;
 
-            // Load normal map if available
-            if (!configObj.texture_path.empty()) {
-                // Try to find matching normal map - look for _normal or _Normal in the same directory
-                std::wstring normal_map_path = configObj.texture_path;
-                size_t last_slash = normal_map_path.find_last_of(L"/\\");
+            // Normal / displacement: derive paths from albedo name; load those exact files (not ResolveTexture).
+            const std::wstring &path_for_stem =
+                    !configObj.texture_path.empty() ? configObj.texture_path : sub.texture_path;
+            if (!path_for_stem.empty()) {
+                size_t last_slash = path_for_stem.find_last_of(L"/\\");
                 if (last_slash != std::wstring::npos) {
-                    std::wstring dir = normal_map_path.substr(0, last_slash + 1);
-                    std::wstring filename = normal_map_path.substr(last_slash + 1);
-                    // Remove extension
+                    std::wstring dir = path_for_stem.substr(0, last_slash + 1);
+                    std::wstring filename = path_for_stem.substr(last_slash + 1);
                     size_t dot_pos = filename.find_last_of(L'.');
                     if (dot_pos != std::wstring::npos) {
                         filename = filename.substr(0, dot_pos);
                     }
-                    // Try common normal map naming patterns
                     std::vector<std::wstring> normal_patterns = {
                         filename + L"_normal.jpg",
                         filename + L"_Normal.jpg",
@@ -212,25 +230,14 @@ RenderObject CreateRenderObject(
                         filename + L"_n.jpg",
                         filename + L"_n.png"
                     };
-                    for (const auto& pattern : normal_patterns) {
+                    for (const auto &pattern : normal_patterns) {
                         std::wstring test_path = dir + pattern;
-                        obj.normal_texture = ResolveTexture(framework, configObj, test_path, texture_cache);
-                        if (obj.normal_texture) break; // Found a valid normal map
+                        if (auto tex = LoadTextureByExplicitPath(framework, test_path, texture_cache)) {
+                            obj.normal_texture = std::move(tex);
+                            break;
+                        }
                     }
-                }
 
-                // Load displacement map if available
-                std::wstring displacement_map_path = configObj.texture_path;
-                size_t last_slash_disp = displacement_map_path.find_last_of(L"/\\");
-                if (last_slash_disp != std::wstring::npos) {
-                    std::wstring dir = displacement_map_path.substr(0, last_slash_disp + 1);
-                    std::wstring filename = displacement_map_path.substr(last_slash_disp + 1);
-                    // Remove extension
-                    size_t dot_pos = filename.find_last_of(L'.');
-                    if (dot_pos != std::wstring::npos) {
-                        filename = filename.substr(0, dot_pos);
-                    }
-                    // Try common displacement map naming patterns
                     std::vector<std::wstring> displacement_patterns = {
                         filename + L"_displacement.jpg",
                         filename + L"_Displacement.jpg",
@@ -238,14 +245,17 @@ RenderObject CreateRenderObject(
                         filename + L"_height.jpg",
                         filename + L"_Height.jpg"
                     };
-                    for (const auto& pattern : displacement_patterns) {
+                    for (const auto &pattern : displacement_patterns) {
                         std::wstring test_path = dir + pattern;
-                        obj.displacement_texture = ResolveTexture(framework, configObj, test_path, texture_cache);
-                        if (obj.displacement_texture) break; // Found a valid displacement map
+                        if (auto tex = LoadTextureByExplicitPath(framework, test_path, texture_cache)) {
+                            obj.displacement_texture = std::move(tex);
+                            break;
+                        }
                     }
                 }
             }
             break;
+        }
 
         case MaterialMode::SolidColor:
             obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
@@ -337,10 +347,12 @@ bool RunApplication(Window &window, InputDevice &input_device) {
         return false;
     }
     LightControlState light_control = {};
-    light_control.directional = framework.GetSceneState().light;
     SetupDefaultLocalLights(light_control);
     PushLightsToRenderingSystem(light_control, rendering_system);
-    rendering_system.SetDisplacementScale(0.1f);
+    // Height map (tessParams.z) + softer normal-map relief (tessParams.w); lower = less “spiky” bricks.
+    rendering_system.SetDisplacementScale(0.05f);
+    rendering_system.SetNormalDisplacementScale(0.11f);
+    rendering_system.SetTessellationParams(2.0f, 8.0f);
 
     PrintSceneLightingHelp();
     PrintTessellationAndDebugHelp();

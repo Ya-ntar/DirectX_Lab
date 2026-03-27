@@ -27,7 +27,9 @@ HSConstantData HSConst(InputPatch<VSOutput, 3> patch)
 {
     HSConstantData const_data;
 
-    float tess = clamp((tessParams.x + tessParams.y) * 0.5f, tessParams.x, tessParams.y);
+    // Bias toward tessParams.x so "max" is a cap, not an implicit target (midpoint was too dense).
+    float tess = tessParams.x + 0.32f * (tessParams.y - tessParams.x);
+    tess = clamp(tess, tessParams.x, tessParams.y);
     tess = max(tess, 1.0f);
 
     // For triangles: 3 edge factors

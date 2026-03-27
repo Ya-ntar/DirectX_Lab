@@ -120,32 +120,43 @@ bool RenderingSystem::CreateGeometryPipeline() {
     Microsoft::WRL::ComPtr<ID3DBlob> vs_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> ps_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> error_blob;
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferVertex.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferVertex.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0",
                                   flags, 0, &vs_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
     }
     error_blob.Reset();
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferPixel.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferPixel.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0",
                                   flags, 0, &ps_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
     }
 
-    D3D12_DESCRIPTOR_RANGE srv_range = {};
-    srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    srv_range.NumDescriptors = 2;
-    srv_range.BaseShaderRegister = 0;
-    srv_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    // One table per texture (t0, t1). A single table with NumDescriptors=2 requires adjacent heap
+    // slots; textures are allocated non-contiguously, so t1 would sample the wrong resource.
+    D3D12_DESCRIPTOR_RANGE albedo_range = {};
+    albedo_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    albedo_range.NumDescriptors = 1;
+    albedo_range.BaseShaderRegister = 0;
+    albedo_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_DESCRIPTOR_RANGE normal_range = {};
+    normal_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    normal_range.NumDescriptors = 1;
+    normal_range.BaseShaderRegister = 1;
+    normal_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER root_params[2] = {};
+    D3D12_ROOT_PARAMETER root_params[3] = {};
     root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     root_params[0].Descriptor.ShaderRegister = 0;
     root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     root_params[1].DescriptorTable.NumDescriptorRanges = 1;
-    root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+    root_params[1].DescriptorTable.pDescriptorRanges = &albedo_range;
     root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    root_params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    root_params[2].DescriptorTable.NumDescriptorRanges = 1;
+    root_params[2].DescriptorTable.pDescriptorRanges = &normal_range;
+    root_params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -158,7 +169,7 @@ bool RenderingSystem::CreateGeometryPipeline() {
     sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rs_desc = {};
-    rs_desc.NumParameters = 2;
+    rs_desc.NumParameters = 3;
     rs_desc.pParameters = root_params;
     rs_desc.NumStaticSamplers = 1;
     rs_desc.pStaticSamplers = &sampler;
@@ -263,7 +274,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
 
     std::cout << "Compiling vertex shader..." << std::endl;
     // Compile vertex shader
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferVertex.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferVertex.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0",
                                   flags, 0, &vs_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
@@ -272,7 +283,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
 
     std::cout << "Compiling hull shader..." << std::endl;
     // Compile hull shader
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessHull.hlsl", nullptr, nullptr, "HSMain", "hs_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessHull.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "HSMain", "hs_5_0",
                                   flags, 0, &hs_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
@@ -281,7 +292,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
 
     std::cout << "Compiling domain shader..." << std::endl;
     // Compile domain shader
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessDomain.hlsl", nullptr, nullptr, "DSMain", "ds_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferTessDomain.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "DSMain", "ds_5_0",
                                   flags, 0, &ds_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
@@ -290,7 +301,7 @@ bool RenderingSystem::CreateGeometryTessPipeline() {
 
     std::cout << "Compiling pixel shader..." << std::endl;
     // Compile pixel shader
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferPixel.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferPixel.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0",
                                   flags, 0, &ps_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
@@ -451,13 +462,13 @@ bool RenderingSystem::CreateLightingPipeline() {
     Microsoft::WRL::ComPtr<ID3DBlob> vs_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> ps_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> error_blob;
-    if (FAILED(D3DCompileFromFile(L"shaders/DeferredLighting.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/DeferredLighting.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0",
                                   flags, 0, &vs_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
     }
     error_blob.Reset();
-    if (FAILED(D3DCompileFromFile(L"shaders/DeferredLighting.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/DeferredLighting.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0",
                                   flags, 0, &ps_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
@@ -557,13 +568,13 @@ bool RenderingSystem::CreateGBufferDebugPipeline() {
     Microsoft::WRL::ComPtr<ID3DBlob> vs_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> ps_blob;
     Microsoft::WRL::ComPtr<ID3DBlob> error_blob;
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferDebug.hlsl", nullptr, nullptr, "VSMain", "vs_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferDebug.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "VSMain", "vs_5_0",
                                   flags, 0, &vs_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
     }
     error_blob.Reset();
-    if (FAILED(D3DCompileFromFile(L"shaders/GBufferDebug.hlsl", nullptr, nullptr, "PSMain", "ps_5_0",
+    if (FAILED(D3DCompileFromFile(L"shaders/GBufferDebug.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "PSMain", "ps_5_0",
                                   flags, 0, &ps_blob, &error_blob))) {
         if (error_blob) std::cerr << static_cast<const char *>(error_blob->GetBufferPointer()) << std::endl;
         return false;
@@ -747,7 +758,7 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
         DirectX::XMStoreFloat4x4(&cb.view, view);
         DirectX::XMStoreFloat4x4(&cb.proj, proj);
         cb.albedo = obj.albedo;
-        cb.tess_params = {tessellation_min_, tessellation_max_, displacement_scale_, 0.0f};
+        cb.tess_params = {tessellation_min_, tessellation_max_, displacement_scale_, normal_displacement_scale_};
         std::memcpy(geometry_cb_mapped_, &cb, sizeof(cb));
 
         cmd->SetGraphicsRootConstantBufferView(0, geometry_cb_->GetGPUVirtualAddress());
@@ -763,8 +774,9 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
             cmd->SetGraphicsRootDescriptorTable(2, normal_srv);
             cmd->SetGraphicsRootDescriptorTable(3, displacement_srv);
         } else {
-            // For regular pipeline: bind base color and normal textures
+            D3D12_GPU_DESCRIPTOR_HANDLE normal_srv = (obj.normal_texture ? obj.normal_texture : fallback_white_)->srv_gpu;
             cmd->SetGraphicsRootDescriptorTable(1, base_srv);
+            cmd->SetGraphicsRootDescriptorTable(2, normal_srv);
         }
 
         // Set primitive topology based on tessellation state
