@@ -5,6 +5,7 @@ cbuffer GeometryCB : register(b0)
     row_major float4x4 proj;
     float4 albedo;
     float4 tessParams;
+    float4 cameraPos;
 };
 
 struct VSOutput
@@ -27,17 +28,21 @@ HSConstantData HSConst(InputPatch<VSOutput, 3> patch)
 {
     HSConstantData const_data;
 
-    // Bias toward tessParams.x so "max" is a cap, not an implicit target (midpoint was too dense).
-    float tess = tessParams.x + 0.32f * (tessParams.y - tessParams.x);
-    tess = clamp(tess, tessParams.x, tessParams.y);
+
+    float3 center = (patch[0].posW + patch[1].posW + patch[2].posW) / 3.0f;
+
+
+    float dist = length(center - cameraPos.xyz);
+
+
+    float t = saturate((dist - tessParams.z) / (tessParams.w - tessParams.z));
+    float tess = lerp(tessParams.y, tessParams.x, t);
     tess = max(tess, 1.0f);
 
-    // For triangles: 3 edge factors
     const_data.edges[0] = tess;
     const_data.edges[1] = tess;
     const_data.edges[2] = tess;
-    // And 1 inside factor
-    const_data.inside = tess;
+    const_data.inside   = tess;
     return const_data;
 }
 

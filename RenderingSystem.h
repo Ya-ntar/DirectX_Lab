@@ -47,6 +47,10 @@ public:
     void SetDisplacementScale(float scale) { displacement_scale_ = scale; }
     /// Extra height from normal map in tess domain (edges where tangent-space z is below 1).
     void SetNormalDisplacementScale(float scale) { normal_displacement_scale_ = scale; }
+    void SetTessellationDistances(float near_dist, float far_dist) {
+        tessellation_near_dist_ = near_dist;
+        tessellation_far_dist_ = far_dist;
+    }
     bool IsTessellationEnabled() const { return tessellation_enabled_; }
 
     // GBuffer visualization
@@ -65,6 +69,7 @@ private:
         DirectX::XMFLOAT4X4 proj = {};
         DirectX::XMFLOAT4 albedo = {1.0f, 1.0f, 1.0f, 1.0f};
         DirectX::XMFLOAT4 tess_params = {1.0f, 16.0f, 0.0f, 0.0f};
+        DirectX::XMFLOAT4 camera_pos = {};
     };
 
     struct PointLightGpu {
@@ -133,6 +138,8 @@ private:
     float tessellation_max_ = 8.0f;
     float displacement_scale_ = 0.1f;
     float normal_displacement_scale_ = 0.0f;
+    float tessellation_near_dist_ = 0.0f;
+    float tessellation_far_dist_ = 1.0f;
     GBufferDebugMode gbuffer_debug_mode_ = GBufferDebugMode::None;
     RenderMode render_mode_ = RenderMode::Solid;
 };

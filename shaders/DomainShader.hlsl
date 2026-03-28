@@ -1,5 +1,7 @@
 #include "TessellationCommon.hlsl"
 
+Texture2D displacementTex : register(t1);
+
  [domain("quad")]
 DSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 4> patch, float2 uv : SV_DomainLocation) {
     float u = uv.x;
@@ -30,12 +32,15 @@ DSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 4> patch,
     tex += patch[2].uv * weights[2];
     tex += patch[3].uv * weights[3];
 
+    float h = displacementTex.SampleLevel(baseColorSampler, tex, 0).r;
+    h = (h - 0.5f) * displacement_scale;
+    pos += normalize(normal) * h;
+
     DSOutput result;
     result.posW = pos;
     result.normalW = normalize(normal);
     result.uv = tex;
-    float4 worldPos = mul(float4(result.posW, 1.0f), world);
-    float4 viewPos = mul(worldPos, view);
+    float4 viewPos = mul(float4(result.posW, 1.0f), view);
     result.posH = mul(viewPos, proj);
     return result;
 }

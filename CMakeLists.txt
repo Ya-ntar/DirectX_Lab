@@ -65,7 +65,8 @@ add_executable(DX12Test main.cpp
         SceneLighting.cpp
         RenderingSystem.h
         RenderingSystem.cpp
-        framework/Constants.h)
+        framework/Constants.h
+        AppRunner.cpp)
 
 target_compile_definitions(DX12Test PRIVATE GAMEFRAMEWORK_STATIC)
 
