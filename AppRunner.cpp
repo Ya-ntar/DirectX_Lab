@@ -194,7 +194,6 @@ bool RunApplication(Window &window, InputDevice &input_device) {
             object.render.mesh = submesh.mesh;
             object.render.world = MakeWorldMatrix(object_config.position, object_config.scale);
             object.render.uv_params = {2.0f, 2.0f, 0.08f, -0.05f};
-            object.render.DisableUVAnimation();
 
             switch (object_config.material_mode) {
                 case MaterialMode::Texture:
