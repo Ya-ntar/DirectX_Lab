@@ -30,9 +30,23 @@ struct SceneObjectConfig {
     float rainbow_speed = 1.0f;
 };
 
+struct RenderSettings {
+    // Tessellation parameters
+    float displacement_scale = 0.05f;
+    float normal_displacement_scale = 0.11f;
+    float tessellation_min_level = 2.0f;
+    float tessellation_max_level = 8.0f;
+    bool tessellation_enabled = true;
+
+    // UV mapping parameters
+    DirectX::XMFLOAT2 uv_scale = {2.0f, 2.0f};
+    DirectX::XMFLOAT2 uv_offset = {0.08f, -0.05f};
+};
+
 struct AppConfig {
     CameraConfig camera = {};
     ControlSettings controls = {};
+    RenderSettings render_settings = {};
     std::vector<SceneObjectConfig> objects = {};
 };
 

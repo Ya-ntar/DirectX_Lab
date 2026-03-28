@@ -25,6 +25,12 @@ add_executable(DX12Test main.cpp
         SceneConfig.h
         SceneConfig.cpp
         ControlSettings.h
+        KeyInputManager.h
+        KeyInputManager.cpp
+        TextureResolver.h
+        TextureResolver.cpp
+        MaterialConfigurator.h
+        MaterialConfigurator.cpp
         framework/Keys.h
         framework/InputDevice.h
         framework/InputDevice.cpp

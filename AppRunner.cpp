@@ -6,7 +6,6 @@
 #include <unordered_map>
 
 #include "ControlSettings.h"
-#include "CubeMesh.h"
 #include "GameController.h"
 #include "MeshData.h"
 #include "MeshLoader.h"
@@ -14,6 +13,9 @@
 #include "RenderingSystem.h"
 #include "SceneConfig.h"
 #include "SceneLighting.h"
+#include "KeyInputManager.h"
+#include "TextureResolver.h"
+#include "MaterialConfigurator.h"
 #include "framework/Framework.h"
 #include "framework/InputDevice.h"
 #include "framework/Timer.h"
@@ -24,12 +26,6 @@ using namespace gfw;
 
 namespace {
 
-    struct LoadedSubmesh {
-        MeshBuffers *mesh = nullptr;
-        std::wstring texture_path;
-        DirectX::XMFLOAT4 albedo = {1.0f, 1.0f, 1.0f, 1.0f};
-    };
-
     DirectX::XMFLOAT4X4 MakeWorldMatrix(const DirectX::XMFLOAT3 &position, const DirectX::XMFLOAT3 &scale) {
         const DirectX::XMMATRIX world =
                 DirectX::XMMatrixScaling(scale.x, scale.y, scale.z) *
@@ -37,49 +33,6 @@ namespace {
         DirectX::XMFLOAT4X4 out = {};
         DirectX::XMStoreFloat4x4(&out, world);
         return out;
-    }
-
-    std::shared_ptr<Texture2D> ResolveTexture(
-            Framework &framework,
-            const SceneObjectConfig &config,
-            const std::wstring &fallback_texture_path,
-            std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> &texture_cache) {
-        std::wstring effective_path;
-        if (config.material_mode == MaterialMode::Texture) {
-            effective_path = !config.texture_path.empty() ? config.texture_path : fallback_texture_path;
-        }
-        if (effective_path.empty()) {
-            return framework.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
-        }
-
-        auto it = texture_cache.find(effective_path);
-        if (it != texture_cache.end()) {
-            return it->second;
-        }
-
-        std::shared_ptr<Texture2D> texture = framework.CreateTextureFromFile(effective_path);
-        texture_cache[effective_path] = texture;
-        return texture ? texture : framework.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
-    }
-
-    // Load exactly this path (used for normal / displacement). ResolveTexture() must NOT be used for those,
-    // because it always prefers config.texture_path and would re-bind the albedo to every slot.
-    std::shared_ptr<Texture2D> LoadTextureByExplicitPath(
-            Framework &framework,
-            const std::wstring &path,
-            std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> &texture_cache) {
-        if (path.empty()) {
-            return {};
-        }
-        if (auto it = texture_cache.find(path); it != texture_cache.end()) {
-            return it->second;
-        }
-        std::shared_ptr<Texture2D> texture = framework.CreateTextureFromFile(path);
-        if (!texture) {
-            return {};
-        }
-        texture_cache[path] = texture;
-        return texture;
     }
 }
 
@@ -146,77 +99,22 @@ RenderObject CreateRenderObject(
         const SceneObjectConfig &configObj,
         const LoadedSubmesh &sub,
         Framework &framework,
-        std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> &texture_cache) {
+        TextureResolver &texture_resolver,
+        const RenderSettings &render_settings) {
     RenderObject obj{};
 
     obj.mesh = sub.mesh;
     obj.world = MakeWorldMatrix(configObj.position, configObj.scale);
-    obj.uv_params = {2.0f, 2.0f, 0.08f, -0.05f};
     obj.DisableUVAnimation();
 
-    switch (configObj.material_mode) {
-        case MaterialMode::Texture: {
-            obj.texture = ResolveTexture(framework, configObj, sub.texture_path, texture_cache);
-            obj.albedo = sub.albedo;
-
-            // Normal / displacement: derive paths from albedo name; load those exact files (not ResolveTexture).
-            const std::wstring &path_for_stem =
-                    !configObj.texture_path.empty() ? configObj.texture_path : sub.texture_path;
-            if (!path_for_stem.empty()) {
-                size_t last_slash = path_for_stem.find_last_of(L"/\\");
-                if (last_slash != std::wstring::npos) {
-                    std::wstring dir = path_for_stem.substr(0, last_slash + 1);
-                    std::wstring filename = path_for_stem.substr(last_slash + 1);
-                    size_t dot_pos = filename.find_last_of(L'.');
-                    if (dot_pos != std::wstring::npos) {
-                        filename = filename.substr(0, dot_pos);
-                    }
-                    std::vector<std::wstring> normal_patterns = {
-                        filename + L"_normal.jpg",
-                        filename + L"_Normal.jpg",
-                        filename + L"_normal.png",
-                        filename + L"_Normal.png",
-                        filename + L"_n.jpg",
-                        filename + L"_n.png"
-                    };
-                    for (const auto &pattern : normal_patterns) {
-                        std::wstring test_path = dir + pattern;
-                        if (auto tex = LoadTextureByExplicitPath(framework, test_path, texture_cache)) {
-                            obj.normal_texture = std::move(tex);
-                            break;
-                        }
-                    }
-
-                    std::vector<std::wstring> displacement_patterns = {
-                        filename + L"_displacement.jpg",
-                        filename + L"_Displacement.jpg",
-                        filename + L"_disp.jpg",
-                        filename + L"_height.jpg",
-                        filename + L"_Height.jpg"
-                    };
-                    for (const auto &pattern : displacement_patterns) {
-                        std::wstring test_path = dir + pattern;
-                        if (auto tex = LoadTextureByExplicitPath(framework, test_path, texture_cache)) {
-                            obj.displacement_texture = std::move(tex);
-                            break;
-                        }
-                    }
-                }
-            }
-            break;
-        }
-
-        case MaterialMode::SolidColor:
-            obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
-            obj.albedo = configObj.solid_color;
-            break;
-
-        case MaterialMode::Rainbow:
-            obj.texture = framework.CreateSolidTexture({1, 1, 1, 1});
-            obj.albedo = {1, 1, 1, 1};
-            obj.effect_params = {1.0f, configObj.rainbow_speed, 0.0f, 0.0f};
-            break;
-    }
+    MaterialConfigurator::ConfigureMaterial(
+        obj,
+        configObj.material_mode,
+        configObj,
+        sub,
+        texture_resolver,
+        framework,
+        render_settings);
 
     return obj;
 }
@@ -244,7 +142,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     std::vector<std::unique_ptr<MeshBuffers>> mesh_buffers;
     std::unordered_map<std::wstring, std::vector<LoadedSubmesh>> model_cache;
     MeshBuffers *plane_mesh = nullptr;
-    std::unordered_map<std::wstring, std::shared_ptr<Texture2D>> texture_cache;
+    TextureResolver texture_resolver(framework);
     std::vector<RenderObject> objects;
 
     for (const SceneObjectConfig &configObj: config.objects) {
@@ -274,7 +172,8 @@ bool RunApplication(Window &window, InputDevice &input_device) {
                     configObj,
                     sub,
                     framework,
-                    texture_cache
+                    texture_resolver,
+                    config.render_settings
             ));
         }
     }
@@ -298,92 +197,70 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     LightControlState light_control = {};
     SetupDefaultLocalLights(light_control);
     PushLightsToRenderingSystem(light_control, rendering_system);
-    // Height map (tessParams.z) + softer normal-map relief (tessParams.w); lower = less “spiky” bricks.
-    rendering_system.SetDisplacementScale(0.05f);
-    rendering_system.SetNormalDisplacementScale(0.11f);
-    rendering_system.SetTessellationParams(2.0f, 8.0f);
+
+    // Apply render settings from config
+    rendering_system.SetDisplacementScale(config.render_settings.displacement_scale);
+    rendering_system.SetNormalDisplacementScale(config.render_settings.normal_displacement_scale);
+    rendering_system.SetTessellationParams(config.render_settings.tessellation_min_level,
+                                           config.render_settings.tessellation_max_level);
+    rendering_system.SetTessellationEnabled(config.render_settings.tessellation_enabled);
 
     PrintSceneLightingHelp();
     PrintTessellationAndDebugHelp();
 
-    bool tess_key_pressed = false;
-    bool wireframe_key_pressed = false;
-    bool debug_0_pressed = false, debug_1_pressed = false, debug_2_pressed = false, debug_3_pressed = false, debug_4_pressed = false;
+    // Setup key input bindings
+    KeyInputManager key_manager;
 
+    key_manager.RegisterKeyBinding(Keys::T, [&rendering_system]() {
+        rendering_system.SetTessellationEnabled(!rendering_system.IsTessellationEnabled());
+        std::cout << "Tessellation: " << (rendering_system.IsTessellationEnabled() ? "ENABLED" : "DISABLED") << std::endl;
+    });
+
+    key_manager.RegisterKeyBinding(Keys::V, [&rendering_system]() {
+        rendering_system.ToggleRenderMode();
+        std::cout << "Render Mode: " << (rendering_system.GetRenderMode() == RenderingSystem::RenderMode::Wireframe ? "WIREFRAME" : "SOLID") << std::endl;
+    });
+
+    key_manager.RegisterKeyBinding(Keys::D0, [&rendering_system]() {
+        rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::None);
+        std::cout << "GBuffer Debug: OFF" << std::endl;
+    });
+
+    key_manager.RegisterKeyBinding(Keys::D1, [&rendering_system]() {
+        rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Position);
+        std::cout << "GBuffer Debug: POSITION" << std::endl;
+    });
+
+    key_manager.RegisterKeyBinding(Keys::D2, [&rendering_system]() {
+        rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Normal);
+        std::cout << "GBuffer Debug: NORMAL" << std::endl;
+    });
+
+    key_manager.RegisterKeyBinding(Keys::D3, [&rendering_system]() {
+        rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Albedo);
+        std::cout << "GBuffer Debug: ALBEDO" << std::endl;
+    });
+
+    key_manager.RegisterKeyBinding(Keys::D4, [&rendering_system]() {
+        rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Depth);
+        std::cout << "GBuffer Debug: DEPTH (from Position.Z)" << std::endl;
+    });
+
+    // Main render loop
     while (window.IsRunning()) {
         window.ProcessMessages();
         timer.Tick();
         auto dt = static_cast<float>(timer.GetDeltaTime());
+
+        // Update game controller and lights
         game.Update(window, input_device, framework, dt);
         ApplyLightControls(input_device, framework.GetSceneState().camera, dt, light_control);
         PushLightsToRenderingSystem(light_control, rendering_system);
 
-        // Tessellation toggle (T key)
-        bool t_pressed = input_device.IsKeyDown(Keys::T);
-        if (t_pressed && !tess_key_pressed) {
-            rendering_system.SetTessellationEnabled(!rendering_system.IsTessellationEnabled());
-            std::cout << "Tessellation: " << (rendering_system.IsTessellationEnabled() ? "ENABLED" : "DISABLED") << std::endl;
-            tess_key_pressed = true;
-        } else if (!t_pressed) {
-            tess_key_pressed = false;
-        }
+        // Update key input state
+        key_manager.Update(input_device);
 
-        // Wireframe toggle (W key)
-        bool w_pressed = input_device.IsKeyDown(Keys::V);
-        if (w_pressed && !wireframe_key_pressed) {
-            rendering_system.ToggleRenderMode();
-            std::cout << "Render Mode: " << (rendering_system.GetRenderMode() == RenderingSystem::RenderMode::Wireframe ? "WIREFRAME" : "SOLID") << std::endl;
-            wireframe_key_pressed = true;
-        } else if (!w_pressed) {
-            wireframe_key_pressed = false;
-        }
-
-        // GBuffer debug modes
-        bool d0_pressed = input_device.IsKeyDown(Keys::D0);
-        if (d0_pressed && !debug_0_pressed) {
-            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::None);
-            std::cout << "GBuffer Debug: OFF" << std::endl;
-            debug_0_pressed = true;
-        } else if (!d0_pressed) {
-            debug_0_pressed = false;
-        }
-
-        bool d1_pressed = input_device.IsKeyDown(Keys::D1);
-        if (d1_pressed && !debug_1_pressed) {
-            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Position);
-            std::cout << "GBuffer Debug: POSITION" << std::endl;
-            debug_1_pressed = true;
-        } else if (!d1_pressed) {
-            debug_1_pressed = false;
-        }
-
-        bool d2_pressed = input_device.IsKeyDown(Keys::D2);
-        if (d2_pressed && !debug_2_pressed) {
-            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Normal);
-            std::cout << "GBuffer Debug: NORMAL" << std::endl;
-            debug_2_pressed = true;
-        } else if (!d2_pressed) {
-            debug_2_pressed = false;
-        }
-
-        bool d3_pressed = input_device.IsKeyDown(Keys::D3);
-        if (d3_pressed && !debug_3_pressed) {
-            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Albedo);
-            std::cout << "GBuffer Debug: ALBEDO" << std::endl;
-            debug_3_pressed = true;
-        } else if (!d3_pressed) {
-            debug_3_pressed = false;
-        }
-
-        bool d4_pressed = input_device.IsKeyDown(Keys::D4);
-        if (d4_pressed && !debug_4_pressed) {
-            rendering_system.SetGBufferDebugMode(RenderingSystem::GBufferDebugMode::Depth);
-            std::cout << "GBuffer Debug: DEPTH (from Position.Z)" << std::endl;
-            debug_4_pressed = true;
-        } else if (!d4_pressed) {
-            debug_4_pressed = false;
-        }
-
+        // Render frame
         framework.BeginFrame();
         rendering_system.Render(objects, static_cast<float>(timer.GetTotalTime()));
         framework.EndFrame();
