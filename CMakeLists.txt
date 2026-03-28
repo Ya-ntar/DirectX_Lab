@@ -22,6 +22,8 @@ endif ()
 add_executable(DX12Test main.cpp
         AppRunner.h
         AppRunner.cpp
+        SceneConfig.h
+        SceneConfig.cpp
         ControlSettings.h
         framework/Keys.h
         framework/InputDevice.h
