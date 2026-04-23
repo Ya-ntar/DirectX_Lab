@@ -22,6 +22,16 @@ endif ()
 add_executable(DX12Test main.cpp
         AppRunner.h
         AppRunner.cpp
+        AppConfig.h
+        AppConfig.cpp
+        AssetRepository.h
+        AssetRepository.cpp
+        MaterialResolver.h
+        MaterialResolver.cpp
+        SceneBootstrap.h
+        SceneBootstrap.cpp
+        RenderLoop.h
+        RenderLoop.cpp
         ControlSettings.h
         framework/Keys.h
         framework/InputDevice.h
