@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include "SceneAnimation.h"
+
 namespace gfw {
 namespace {
 
@@ -34,6 +36,7 @@ std::vector<RenderObject> BootstrapSceneObjects(const AppConfig &config,
             render_object.world = MakeWorldMatrix(object_config.position, object_config.scale);
             render_object.uv_params = {2.0f, 2.0f, 0.08f, -0.05f};
             material_resolver.ApplyMaterial(object_config, submesh, render_object);
+            ApplyVertexAnimationParams(object_config, render_object);
             objects.push_back(std::move(render_object));
         }
     }

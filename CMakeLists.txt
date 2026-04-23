@@ -28,7 +28,9 @@ add_executable(DX12Test main.cpp
         AssetRepository.cpp
         MaterialResolver.h
         MaterialResolver.cpp
-        SceneBootstrap.h
+            SceneAnimation.h
+        SceneAnimation.cpp
+            SceneBootstrap.h
         SceneBootstrap.cpp
         RenderLoop.h
         RenderLoop.cpp
@@ -76,5 +78,5 @@ add_custom_command(
     TARGET DX12Test POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
-            $<TARGET_FILE_DIR:DX12Test>
+            "$<TARGET_FILE_DIR:DX12Test>/shaders"
 )
