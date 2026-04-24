@@ -2,6 +2,7 @@
 
 #include "AppConfig.h"
 #include "AssetRepository.h"
+#include "MeshLoader.h"
 #include <iostream>
 #include <vector>
 
@@ -23,6 +24,9 @@ bool RunApplication(Window &window, InputDevice &input_device) {
         std::wcerr << L"Failed to initialize Framework!" << std::endl;
         return false;
     }
+
+    // Print all materials in Sponza to console
+    // PrintModelMaterials(L"sponza/Sponza-master/Sponza.obj", L"sponza/Sponza-master/Sponza.mtl");
 
     AppConfig config = BuildAppConfig();
     framework.SetCamera(BuildInitialCamera(config));
@@ -46,3 +50,5 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     framework.Shutdown();
     return true;
 }
+
+

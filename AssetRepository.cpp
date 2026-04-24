@@ -31,6 +31,20 @@ std::vector<LoadedSubmesh> AssetRepository::LoadModelSubmeshes(const SceneObject
             continue;
         }
 
+        // Apply material filter if specified
+        if (!object_config.material_filter.empty()) {
+            bool match = false;
+            for (const auto &filter_material : object_config.material_filter) {
+                if (submesh.material_name == filter_material) {
+                    match = true;
+                    break;
+                }
+            }
+            if (!match) {
+                continue;
+            }
+        }
+
         std::unique_ptr<MeshBuffers> buffers = framework_.CreateMeshBuffers(submesh.mesh);
         if (!buffers) {
             continue;

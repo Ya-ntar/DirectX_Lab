@@ -269,4 +269,13 @@ MeshData MeshLoader::LoadObj(const std::wstring &filename) {
     }
     return {};
 }
+
+std::vector<std::wstring> MeshLoader::GetMaterialNames(const std::wstring &obj_filename, const std::wstring &mtl_filename) {
+    ObjModelData model = LoadObjModel(obj_filename, mtl_filename);
+    std::vector<std::wstring> material_names;
+    for (const auto &sub : model.submeshes) {
+        material_names.push_back(sub.material_name);
+    }
+    return material_names;
+}
 }

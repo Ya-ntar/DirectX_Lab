@@ -32,6 +32,8 @@ struct SceneObjectConfig {
     float rainbow_speed = 1.0f;
     float vertex_wave_amplitude = 0.0f;
     float vertex_wave_frequency = 2.0f;
+    // Material filter: if not empty, only submeshes with these material names will be loaded
+    std::vector<std::wstring> material_filter = {};
 };
 
 struct AppConfig {
@@ -42,6 +44,9 @@ struct AppConfig {
 
 AppConfig BuildAppConfig();
 Camera BuildInitialCamera(const AppConfig &config);
+
+// Debug function to print all materials in a model
+void PrintModelMaterials(const std::wstring &obj_path, const std::wstring &mtl_path);
 
 }  // namespace gfw
 

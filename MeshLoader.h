@@ -21,5 +21,6 @@ namespace gfw {
     public:
         static ObjModelData LoadObjModel(const std::wstring &obj_filename, const std::wstring &mtl_filename = L"");
         static MeshData LoadObj(const std::wstring& filename);
+        static std::vector<std::wstring> GetMaterialNames(const std::wstring &obj_filename, const std::wstring &mtl_filename = L"");
     };
 }
