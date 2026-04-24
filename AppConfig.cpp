@@ -18,13 +18,32 @@ AppConfig BuildAppConfig() {
     config.camera.position = {0.0f, 1.5f, -6.0f};
     config.camera.target = {0.0f, 1.0f, 0.0f};
 
+
+
+    //PrintModelMaterials(L"sponza/Sponza-master/Sponza.obj", L"sponza/Sponza-master/Sponza.mtl");
     SceneObjectConfig sponza_plants;
+
+    SceneObjectConfig sponza_else;
+    sponza_else.name = L"Sponza (filtered)";
+    sponza_else.material_mode = MaterialMode::Texture;
+    sponza_else.obj_path = L"sponza/Sponza-master/Sponza.obj";
+    sponza_else.mtl_path = L"sponza/Sponza-master/Sponza.mtl";
+    
+    sponza_else.material_filter = {
+            L"vase",
+    };
+    config.objects.push_back(sponza_else);
+
     sponza_plants.name = L"Sponza Plants";
     sponza_plants.obj_path = L"sponza/Sponza-master/Sponza.obj";
     sponza_plants.mtl_path = L"sponza/Sponza-master/Sponza.mtl";
     sponza_plants.material_mode = MaterialMode::Texture;
-    sponza_plants.material_filter = { L"leaf" };  // ТОЛЬКО РАСТЕНИЯ!
+    sponza_plants.material_filter = { L"leaf" };
+
+    sponza_plants.vertex_wave_amplitude = 0.14f;
+    sponza_plants.vertex_wave_frequency = 2.8f;
     config.objects.push_back(sponza_plants);
+
 
     return config;
 }
@@ -38,4 +57,3 @@ Camera BuildInitialCamera(const AppConfig &config) {
 }
 
 }  // namespace gfw
-

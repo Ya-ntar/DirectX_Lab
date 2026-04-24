@@ -10,8 +10,7 @@ cbuffer SceneCB : register(b0)
     float4 albedo;
     float4 uvParams;
     float4 effectParams;
-    float timeSeconds;
-    float3 _padding0;
+    float4 timePad;
 }
 
 Texture2D baseColorTex : register(t0);
@@ -41,7 +40,7 @@ float3 ApplyVertexWave(float3 localPos)
     }
 
     const float frequency = max(effectParams.w, 0.001f);
-    const float phase = timeSeconds * frequency + (localPos.x + localPos.z) * 2.0f;
+    const float phase = timePad.x * frequency + (localPos.x + localPos.z) * 2.0f;
     const float displacement = sin(phase) * amplitude;
     return float3(localPos.x, localPos.y + displacement, localPos.z);
 }

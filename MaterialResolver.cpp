@@ -15,7 +15,9 @@ void MaterialResolver::ApplyMaterial(const SceneObjectConfig &object_config,
         case MaterialMode::Texture:
             render_object.texture = ResolveTexture(object_config, submesh.texture_path);
             render_object.albedo = submesh.albedo;
-            render_object.effect_params = {0.0f, 0.0f, 0.0f, 0.0f};
+            // x,y = rainbow / flags; z,w = vertex wave (filled in ApplyVertexAnimationParams)
+            render_object.effect_params.x = 0.0f;
+            render_object.effect_params.y = 0.0f;
             break;
         case MaterialMode::SolidColor:
             render_object.texture = white_texture_;

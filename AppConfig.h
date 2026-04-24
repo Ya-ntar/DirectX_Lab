@@ -32,7 +32,6 @@ struct SceneObjectConfig {
     float rainbow_speed = 1.0f;
     float vertex_wave_amplitude = 0.0f;
     float vertex_wave_frequency = 2.0f;
-    // Material filter: if not empty, only submeshes with these material names will be loaded
     std::vector<std::wstring> material_filter = {};
 };
 

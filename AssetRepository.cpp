@@ -5,6 +5,19 @@
 #include "framework/Framework.h"
 
 namespace gfw {
+namespace {
+
+// Cache must distinguish material_filter: same OBJ/MTL with different filters = different submesh sets.
+std::wstring ModelCacheKey(const SceneObjectConfig &cfg) {
+    std::wstring key = cfg.obj_path + L"|" + cfg.mtl_path;
+    for (const std::wstring &mat : cfg.material_filter) {
+        key += L"\x1F";
+        key += mat;
+    }
+    return key;
+}
+
+}  // namespace
 
 AssetRepository::AssetRepository(Framework &framework) : framework_(framework) {
 }
@@ -17,7 +30,7 @@ std::vector<LoadedSubmesh> AssetRepository::ResolveSubmeshes(const SceneObjectCo
 }
 
 std::vector<LoadedSubmesh> AssetRepository::LoadModelSubmeshes(const SceneObjectConfig &object_config) {
-    const std::wstring mesh_key = object_config.obj_path + L"|" + object_config.mtl_path;
+    const std::wstring mesh_key = ModelCacheKey(object_config);
     const auto cached_it = model_cache_.find(mesh_key);
     if (cached_it != model_cache_.end()) {
         return cached_it->second;
