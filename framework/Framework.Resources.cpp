@@ -266,7 +266,6 @@ namespace gfw {
 
         auto buffers = std::make_unique<MeshBuffers>();
         buffers->topology = mesh_data.topology;
-        buffers->vertex_count = mesh_data.vertex_count;  // Store vertex count for non-indexed draws
 
         const UINT vb_size = static_cast<UINT>(mesh_data.vertex_data.size());
         if (!CreateUploadBuffer(device_.Get(), vb_size, mesh_data.vertex_data.data(), buffers->vertex_buffer)) {
@@ -287,6 +286,8 @@ namespace gfw {
             buffers->index_buffer_view.SizeInBytes = ib_size;
             buffers->index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
             buffers->index_count = static_cast<UINT>(mesh_data.indices.size());
+        } else {
+            buffers->index_count = mesh_data.vertex_count;
         }
 
         return buffers;
