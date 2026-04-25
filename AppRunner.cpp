@@ -1,16 +1,12 @@
 #include "AppRunner.h"
 
-#include "AppConfig.h"
-#include "AssetRepository.h"
-#include "MeshLoader.h"
 #include <iostream>
+#include <memory>
 #include <vector>
+#include <unordered_map>
 
 #include "ControlSettings.h"
 #include "GameController.h"
-#include "MaterialResolver.h"
-#include "RenderLoop.h"
-#include "SceneBootstrap.h"
 #include "MeshData.h"
 #include "MeshLoader.h"
 #include "PlaneMesh.h"
@@ -131,15 +127,6 @@ bool RunApplication(Window &window, InputDevice &input_device) {
         return false;
     }
 
-    // Print all materials in Sponza to console
-    // PrintModelMaterials(L"sponza/Sponza-master/Sponza.obj", L"sponza/Sponza-master/Sponza.mtl");
-
-    AppConfig config = BuildAppConfig();
-    framework.SetCamera(BuildInitialCamera(config));
-
-    AssetRepository asset_repository(framework);
-    MaterialResolver material_resolver(framework);
-    std::vector<RenderObject> objects = BootstrapSceneObjects(config, asset_repository, material_resolver);
     AppConfig config;
     config.camera.position = {0.0f, 2.0f, -8.0f};
     config.camera.target = {0.0f, 1.0f, 0.0f};
@@ -202,7 +189,6 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     GameControllerSettings game_settings = ToGameControllerSettings(config.controls);
     GameController game(game_settings);
 
-    RunRenderLoop(window, input_device, framework, game, objects, timer);
     RenderingSystem rendering_system;
     if (!rendering_system.Initialize(&framework, window.GetWidth(), window.GetHeight())) {
         std::wcerr << L"Failed to initialize deferred RenderingSystem." << std::endl;

@@ -229,13 +229,10 @@ namespace gfw {
     }
 
     bool Framework::CreateConstantBuffer() {
-        constexpr UINT kRingSlots = 4096u;
-        cb_upload_stride_ = detail::Align256(sizeof(SceneConstants));
-        cb_upload_capacity_ = cb_upload_stride_ * kRingSlots;
-        cb_upload_cursor_ = 0;
+        const UINT cb_size = detail::Align256(sizeof(SceneConstants));
 
         const D3D12_HEAP_PROPERTIES heap_props = detail::HeapProperties(D3D12_HEAP_TYPE_UPLOAD);
-        const D3D12_RESOURCE_DESC cb_desc = detail::BufferDesc(cb_upload_capacity_);
+        const D3D12_RESOURCE_DESC cb_desc = detail::BufferDesc(cb_size);
         if (FAILED(device_->CreateCommittedResource(
                 &heap_props,
                 D3D12_HEAP_FLAG_NONE,
@@ -254,7 +251,7 @@ namespace gfw {
         }
 
         constant_buffer_mapped_ = static_cast<std::uint8_t *>(mapped);
-        std::memset(constant_buffer_mapped_, 0, cb_upload_capacity_);
+        std::memset(constant_buffer_mapped_, 0, cb_size);
         return true;
     }
 
