@@ -1,6 +1,6 @@
 #include "AppRunner.h"
 
-#include "AppConfig.h"
+#include "SceneConfig.h"
 #include "AssetRepository.h"
 #include "MeshLoader.h"
 #include <iostream>
@@ -28,7 +28,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     // Print all materials in Sponza to console
     // PrintModelMaterials(L"sponza/Sponza-master/Sponza.obj", L"sponza/Sponza-master/Sponza.mtl");
 
-    AppConfig config = BuildAppConfig();
+    SceneConfig config = BuildAppConfig();
     framework.SetCamera(BuildInitialCamera(config));
 
     AssetRepository asset_repository(framework);

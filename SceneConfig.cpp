@@ -1,4 +1,4 @@
-#include "AppConfig.h"
+#include "SceneConfig.h"
 #include "MeshLoader.h"
 #include <iostream>
 
@@ -13,8 +13,8 @@ void PrintModelMaterials(const std::wstring &obj_path, const std::wstring &mtl_p
     }
 }
 
-AppConfig BuildAppConfig() {
-    AppConfig config;
+SceneConfig BuildAppConfig() {
+    SceneConfig config;
     config.camera.position = {0.0f, 1.5f, -6.0f};
     config.camera.target = {0.0f, 1.0f, 0.0f};
 
@@ -71,7 +71,7 @@ AppConfig BuildAppConfig() {
     return config;
 }
 
-Camera BuildInitialCamera(const AppConfig &config) {
+Camera BuildInitialCamera(const SceneConfig &config) {
     Camera camera;
     camera.position = config.camera.position;
     camera.target = config.camera.target;

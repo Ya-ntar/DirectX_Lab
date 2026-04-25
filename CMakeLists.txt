@@ -22,8 +22,8 @@ endif ()
 add_executable(DX12Test main.cpp
         AppRunner.h
         AppRunner.cpp
-        AppConfig.h
-        AppConfig.cpp
+        SceneConfig.h
+        SceneConfig.cpp
         AssetRepository.h
         AssetRepository.cpp
         MaterialResolver.h

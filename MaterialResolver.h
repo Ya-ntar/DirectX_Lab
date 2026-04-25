@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "AppConfig.h"
+#include "SceneConfig.h"
 #include "AssetRepository.h"
 #include "framework/FrameworkTypes.h"
 

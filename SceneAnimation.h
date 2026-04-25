@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AppConfig.h"
+#include "SceneConfig.h"
 #include "framework/FrameworkTypes.h"
 
 namespace gfw {

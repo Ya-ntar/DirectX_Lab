@@ -18,7 +18,7 @@ DirectX::XMFLOAT4X4 MakeWorldMatrix(const DirectX::XMFLOAT3 &position, const Dir
 
 }  // namespace
 
-std::vector<RenderObject> BootstrapSceneObjects(const AppConfig &config,
+std::vector<RenderObject> BootstrapSceneObjects(const SceneConfig &config,
                                                 AssetRepository &asset_repository,
                                                 MaterialResolver &material_resolver) {
     std::vector<RenderObject> objects;

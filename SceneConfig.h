@@ -35,14 +35,14 @@ struct SceneObjectConfig {
     std::vector<std::wstring> material_filter = {};
 };
 
-struct AppConfig {
+struct SceneConfig {
     CameraConfig camera = {};
     ControlSettings controls = {};
     std::vector<SceneObjectConfig> objects = {};
 };
 
-AppConfig BuildAppConfig();
-Camera BuildInitialCamera(const AppConfig &config);
+SceneConfig BuildAppConfig();
+Camera BuildInitialCamera(const SceneConfig &config);
 
 // Debug function to print all materials in a model
 void PrintModelMaterials(const std::wstring &obj_path, const std::wstring &mtl_path);

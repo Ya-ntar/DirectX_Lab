@@ -7,7 +7,7 @@
 
 #include <DirectXMath.h>
 
-#include "AppConfig.h"
+#include "SceneConfig.h"
 #include "MeshData.h"
 
 namespace gfw {
