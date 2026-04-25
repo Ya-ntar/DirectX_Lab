@@ -10,7 +10,8 @@ cbuffer SceneCB : register(b0)
     float4 albedo;
     float4 uvParams;
     float4 effectParams;
-    float4 timePad;
+    float timeSeconds;
+    float3 _padding0;
 }
 
 Texture2D baseColorTex : register(t0);
@@ -30,12 +31,12 @@ struct VSOutput
     float2 uv : TEXCOORD2;
 };
 
-float3 ApplyRainbowShift(float3 baseColor, float2 uvAnim, float t)
+float3 ApplyRainbowShift(float3 baseColor, float2 uvAnim, float timeSeconds)
 {
     float3 texProc = 0.5f + 0.5f * sin(float3(
-        t + uvAnim.x * 6.28318f,
-        t * 1.3f + uvAnim.y * 6.28318f,
-        t * 0.7f));
+        timeSeconds + uvAnim.x * 6.28318f,
+        timeSeconds * 1.3f + uvAnim.y * 6.28318f,
+        timeSeconds * 0.7f));
     return baseColor * texProc;
 }
 
@@ -47,11 +48,11 @@ float4 ShadePhong(VSOutput input, bool applyRainbow)
 
     float ndotl = max(dot(N, L), 0.0f);
     float2 uvTiled = input.uv * uvParams.xy;
-    float2 uvAnim = frac(uvTiled + timePad.x * uvParams.zw);
+    float2 uvAnim = frac(uvTiled + timeSeconds * uvParams.zw);
     float4 texSample = baseColorTex.Sample(baseColorSampler, uvAnim);
     float3 tex = texSample.rgb;
     if (applyRainbow) {
-        const float rainbowTime = timePad.x * max(effectParams.y, 0.001f);
+        const float rainbowTime = timeSeconds * max(effectParams.y, 0.001f);
         tex = ApplyRainbowShift(texSample.rgb, uvAnim, rainbowTime);
     }
     float3 diffuse = (albedo.rgb * tex) * lightColor.rgb * ndotl;

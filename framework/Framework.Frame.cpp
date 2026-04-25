@@ -7,8 +7,6 @@ namespace gfw {
     void Framework::BeginFrame() {
         WaitForPreviousFrame();
 
-        cb_upload_cursor_ = 0;
-
         frame_index_ = swap_chain_->GetCurrentBackBufferIndex();
 
         if (FAILED(command_allocator_[frame_index_]->Reset())) {
