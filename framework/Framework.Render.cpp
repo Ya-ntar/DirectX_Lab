@@ -1,15 +1,35 @@
 #include "Framework.h"
 
+#include <iostream>
 #include <iterator>
 
 namespace gfw {
+namespace {
+bool g_cb_ring_overflow_logged = false;
+}
     bool Framework::IsRenderReady() const {
         return pipeline_state_ && root_signature_ && constant_buffer_ && srv_heap_ && default_texture_;
     }
 
     void Framework::RenderMeshImpl(const MeshBuffers &buffers, const SceneConstants &constants,
                                    D3D12_GPU_DESCRIPTOR_HANDLE texture_srv, bool transparent) {
-        std::memcpy(constant_buffer_mapped_, &constants, sizeof(constants));
+        const UINT slot_size = cb_upload_stride_ > 0u ? cb_upload_stride_ : sizeof(SceneConstants);
+        if (cb_upload_cursor_ + slot_size > cb_upload_capacity_) {
+            if (!g_cb_ring_overflow_logged) {
+                std::cerr << "Scene constant ring buffer full; increase kRingSlots in CreateConstantBuffer.\n";
+                g_cb_ring_overflow_logged = true;
+            }
+            return;
+        }
+
+        std::uint8_t *const slot_ptr = constant_buffer_mapped_ + cb_upload_cursor_;
+        std::memcpy(slot_ptr, &constants, sizeof(constants));
+        if (slot_size > sizeof(constants)) {
+            std::memset(slot_ptr + sizeof(constants), 0, slot_size - sizeof(constants));
+        }
+
+        const D3D12_GPU_VIRTUAL_ADDRESS cb_gpu_va = constant_buffer_->GetGPUVirtualAddress() + cb_upload_cursor_;
+        cb_upload_cursor_ += slot_size;
 
         ID3D12DescriptorHeap *heaps[] = {srv_heap_.Get()};
         command_list_->SetDescriptorHeaps(static_cast<UINT>(std::size(heaps)), heaps);
@@ -26,7 +46,7 @@ namespace gfw {
         command_list_->IASetPrimitiveTopology(buffers.topology);
         command_list_->IASetVertexBuffers(0, 1, &buffers.vertex_buffer_view);
 
-        command_list_->SetGraphicsRootConstantBufferView(0, constant_buffer_->GetGPUVirtualAddress());
+        command_list_->SetGraphicsRootConstantBufferView(0, cb_gpu_va);
         command_list_->SetGraphicsRootDescriptorTable(1, texture_srv);
 
         if (buffers.index_buffer) {

@@ -10,8 +10,7 @@ cbuffer SceneCB : register(b0)
     float4 albedo;
     float4 uvParams;
     float4 effectParams;
-    float timeSeconds;
-    float3 _padding0;
+    float4 timePad;
 }
 
 Texture2D baseColorTex : register(t0);
@@ -32,10 +31,25 @@ struct VSOutput
     float2 uv : TEXCOORD2;
 };
 
+float3 ApplyVertexWave(float3 localPos)
+{
+    const float amplitude = max(effectParams.z, 0.0f);
+    if (amplitude <= 0.0f)
+    {
+        return localPos;
+    }
+
+    const float frequency = max(effectParams.w, 0.001f);
+    const float phase = timePad.x * frequency + (localPos.x + localPos.z) * 2.0f;
+    const float displacement = sin(phase) * amplitude;
+    return float3(localPos.x, localPos.y + displacement, localPos.z);
+}
+
 VSOutput VSMain(VSInput input)
 {
     VSOutput o;
-    float4 posW = mul(float4(input.pos, 1.0f), world);
+    const float3 animatedLocalPos = ApplyVertexWave(input.pos);
+    float4 posW = mul(float4(animatedLocalPos, 1.0f), world);
     float4 posV = mul(posW, view);
     o.posH = mul(posV, proj);
     o.posW = posW.xyz;

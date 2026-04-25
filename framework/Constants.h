@@ -16,8 +16,8 @@ namespace gfw {
         DirectX::XMFLOAT4 albedo;
         DirectX::XMFLOAT4 uv_params = {1.0f, 1.0f, 0.15f, -0.10f};
         DirectX::XMFLOAT4 effect_params = {0.0f, 0.0f, 0.0f, 0.0f};
-        float time_seconds = 0.0f;
-        DirectX::XMFLOAT3 _padding0 = {0.0f, 0.0f, 0.0f};
+        // Single float4 so VS/PS cbuffer matches MSVC layout (avoid float + float3 packing mismatch).
+        DirectX::XMFLOAT4 time_pad = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     struct Camera {
@@ -89,7 +89,7 @@ namespace gfw {
         constants.light_color = scene.light.color;
         constants.ambient_color = scene.light.ambient;
         constants.albedo = scene.material.albedo;
-        constants.time_seconds = time_seconds;
+        constants.time_pad = {time_seconds, 0.0f, 0.0f, 0.0f};
 
         return constants;
     }

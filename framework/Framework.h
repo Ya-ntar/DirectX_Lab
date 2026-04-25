@@ -54,6 +54,11 @@ private:
 
     ComPtr<ID3D12Resource> constant_buffer_;
     std::uint8_t *constant_buffer_mapped_ = nullptr;
+    /// Per-draw suballocation (D3D12 root CBV offset must be 256-byte aligned). One upload buffer overwrites
+    /// during recording if we memcpy to the same address for every object — GPU then reads last object only.
+    UINT cb_upload_stride_ = 0;
+    UINT cb_upload_capacity_ = 0;
+    UINT cb_upload_cursor_ = 0;
 
     SceneState scene_state_ = {};
     std::vector<std::shared_ptr<Texture2D>> textures_;
