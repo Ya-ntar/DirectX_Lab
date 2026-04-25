@@ -14,7 +14,7 @@ namespace gfw {
 
         // Compile vertex shader from file
         HRESULT hr_vs = D3DCompileFromFile(L"shaders/VertexShader.hlsl",
-                                            nullptr, nullptr,
+                                            nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
                                             "VSMain", "vs_5_0",
                                             compile_flags, 0,
                                             &vs_blob, &error_blob);
@@ -28,7 +28,7 @@ namespace gfw {
 
         error_blob.Reset();
         HRESULT hr_ps = D3DCompileFromFile(L"shaders/PixelShader.hlsl",
-                                            nullptr, nullptr,
+                                            nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
                                             "PSMain", "ps_5_0",
                                             compile_flags, 0,
                                             &ps_blob, &error_blob);
@@ -42,7 +42,7 @@ namespace gfw {
 
         error_blob.Reset();
         HRESULT hr_ps_rainbow = D3DCompileFromFile(L"shaders/PixelShader.hlsl",
-                                                   nullptr, nullptr,
+                                                   nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
                                                    "PSRainbow", "ps_5_0",
                                                    compile_flags, 0,
                                                    &ps_rainbow_blob, &error_blob);

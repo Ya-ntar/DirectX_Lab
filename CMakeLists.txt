@@ -34,7 +34,15 @@ add_executable(DX12Test main.cpp
         SceneBootstrap.cpp
         RenderLoop.h
         RenderLoop.cpp
+        SceneConfig.h
+        SceneConfig.cpp
         ControlSettings.h
+        KeyInputManager.h
+        KeyInputManager.cpp
+        TextureResolver.h
+        TextureResolver.cpp
+        MaterialConfigurator.h
+        MaterialConfigurator.cpp
         framework/Keys.h
         framework/InputDevice.h
         framework/InputDevice.cpp
@@ -58,10 +66,19 @@ add_executable(DX12Test main.cpp
         framework/Framework.Render.cpp
         CubeMesh.h
         CubeMesh.cpp
+        PlaneMesh.h
+        PlaneMesh.cpp
         MeshData.h
         MeshLoader.h
         MeshLoader.cpp
-        framework/Constants.h)
+        GBuffer.h
+        GBuffer.cpp
+        SceneLighting.h
+        SceneLighting.cpp
+        RenderingSystem.h
+        RenderingSystem.cpp
+        framework/Constants.h
+        AppRunner.cpp)
 
 target_compile_definitions(DX12Test PRIVATE GAMEFRAMEWORK_STATIC)
 
