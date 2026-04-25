@@ -20,7 +20,7 @@ AppConfig BuildAppConfig() {
 
 
 
-    //PrintModelMaterials(L"sponza/Sponza-master/Sponza.obj", L"sponza/Sponza-master/Sponza.mtl");
+    PrintModelMaterials(L"sponza/Sponza-master/Sponza.obj", L"sponza/Sponza-master/Sponza.mtl");
     SceneObjectConfig sponza_plants;
 
     SceneObjectConfig sponza_else;
@@ -28,9 +28,32 @@ AppConfig BuildAppConfig() {
     sponza_else.material_mode = MaterialMode::Texture;
     sponza_else.obj_path = L"sponza/Sponza-master/Sponza.obj";
     sponza_else.mtl_path = L"sponza/Sponza-master/Sponza.mtl";
-    
+
     sponza_else.material_filter = {
+            L"column_b",
+            L"fabric_c",
+            L"fabric_g",
+            L"flagpole",
+            L"column_c",
+            L"fabric_f",
+            L"floor",
+            L"bricks",
+            L"column_a",
+            L"details",
+            L"vase_hanging",
+            L"chain",
+            L"arch",
+            L"ceiling",
+            L"fabric_e",
+            L"fabric_d",
+            L"vase_round",
+            L"Material__57",
+            L"Material__298",
+            L"Material__47",
+            L"fabric_a",
+            L"Material__25",
             L"vase",
+            L"roof"
     };
     config.objects.push_back(sponza_else);
 
