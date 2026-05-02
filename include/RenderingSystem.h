@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include <array>
 #include <vector>
 
 #include "GBuffer.h"
 #include "SceneLighting.h"
-#include "framework/Framework.h"
+#include "../framework/Framework.h"
 
 namespace gfw {
 
@@ -144,3 +144,4 @@ private:
     RenderMode render_mode_ = RenderMode::Solid;
 };
 }
+

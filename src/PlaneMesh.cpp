@@ -1,4 +1,4 @@
-#include "PlaneMesh.h"
+﻿#include "../include/PlaneMesh.h"
 
 #include <array>
 
@@ -36,3 +36,4 @@ namespace gfw {
         return mesh;
     }
 }
+

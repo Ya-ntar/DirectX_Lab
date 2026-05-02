@@ -1,25 +1,25 @@
-#include "AppRunner.h"
+﻿#include "../include/AppRunner.h"
 
 #include <iostream>
 #include <memory>
 #include <vector>
 #include <unordered_map>
 
-#include "ControlSettings.h"
-#include "GameController.h"
-#include "MeshData.h"
-#include "MeshLoader.h"
-#include "PlaneMesh.h"
-#include "RenderingSystem.h"
-#include "SceneConfig.h"
-#include "SceneLighting.h"
-#include "KeyInputManager.h"
-#include "TextureResolver.h"
-#include "MaterialConfigurator.h"
-#include "framework/Framework.h"
-#include "framework/InputDevice.h"
-#include "framework/Timer.h"
-#include "framework/Window.h"
+#include "../include/ControlSettings.h"
+#include "../include/GameController.h"
+#include "../include/MeshData.h"
+#include "../include/MeshLoader.h"
+#include "../include/PlaneMesh.h"
+#include "../include/RenderingSystem.h"
+#include "../include/SceneConfig.h"
+#include "../include/SceneLighting.h"
+#include "../include/KeyInputManager.h"
+#include "../include/TextureResolver.h"
+#include "../include/MaterialConfigurator.h"
+#include "../framework/Framework.h"
+#include "../framework/InputDevice.h"
+#include "../framework/Timer.h"
+#include "../framework/Window.h"
 
 
 using namespace gfw;
@@ -271,6 +271,7 @@ bool RunApplication(Window &window, InputDevice &input_device) {
     framework.Shutdown();
     return true;
 }
+
 
 
 

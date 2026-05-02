@@ -1,6 +1,6 @@
-#include "GBuffer.h"
+﻿#include "../include/GBuffer.h"
 
-#include "framework/FrameworkInternal.h"
+#include "../framework/FrameworkInternal.h"
 
 namespace gfw {
 bool GBuffer::Initialize(ID3D12Device *device, UINT width, UINT height) {
@@ -135,3 +135,4 @@ D3D12_GPU_DESCRIPTOR_HANDLE GBuffer::GetSrv(UINT index) const {
     return handle;
 }
 }
+

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <array>
 #include <d3d12.h>
@@ -37,3 +37,4 @@ private:
     std::array<Target, kTargetCount> targets_ = {};
 };
 }
+

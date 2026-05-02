@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "MeshData.h"
 #include <string>
@@ -23,3 +23,4 @@ namespace gfw {
         static MeshData LoadObj(const std::wstring& filename);
     };
 }
+

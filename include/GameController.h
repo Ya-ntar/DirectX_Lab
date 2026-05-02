@@ -1,10 +1,10 @@
-#pragma once
+﻿#pragma once
 
-#include "framework/Constants.h"
-#include "framework/InputDevice.h"
-#include "framework/Keys.h"
-#include "framework/Framework.h"
-#include "framework/Window.h"
+#include "../framework/Constants.h"
+#include "../framework/InputDevice.h"
+#include "../framework/Keys.h"
+#include "../framework/Framework.h"
+#include "../framework/Window.h"
 #include <DirectXMath.h>
 
 namespace gfw {
@@ -110,3 +110,4 @@ private:
     CameraController camera_;
 };
 }
+

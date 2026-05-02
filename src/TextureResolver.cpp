@@ -1,5 +1,5 @@
-#include "TextureResolver.h"
-#include "SceneConfig.h"
+﻿#include "../include/TextureResolver.h"
+#include "../include/SceneConfig.h"
 
 namespace gfw {
 
@@ -18,13 +18,13 @@ std::shared_ptr<Texture2D> TextureResolver::ResolveDiffuse(
         return framework_.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
     }
 
-    // Проверяем кеш
+    // РџСЂРѕРІРµСЂСЏРµРј РєРµС€
     auto it = cache_.find(effective_path);
     if (it != cache_.end()) {
         return it->second;
     }
 
-    // Загружаем и кешируем
+    // Р—Р°РіСЂСѓР¶Р°РµРј Рё РєРµС€РёСЂСѓРµРј
     std::shared_ptr<Texture2D> texture = framework_.CreateTextureFromFile(effective_path);
     cache_[effective_path] = texture;
     return texture ? texture : framework_.CreateSolidTexture({1.0f, 1.0f, 1.0f, 1.0f});
@@ -49,12 +49,12 @@ std::shared_ptr<Texture2D> TextureResolver::TryLoadTexture(
     for (const auto &pattern : patterns) {
         std::wstring test_path = directory + pattern;
 
-        // Проверяем кеш
+        // РџСЂРѕРІРµСЂСЏРµРј РєРµС€
         if (auto it = cache_.find(test_path); it != cache_.end()) {
             return it->second;
         }
 
-        // Пытаемся загрузить
+        // РџС‹С‚Р°РµРјСЃСЏ Р·Р°РіСЂСѓР·РёС‚СЊ
         std::shared_ptr<Texture2D> texture = framework_.CreateTextureFromFile(test_path);
         if (texture) {
             cache_[test_path] = texture;
@@ -107,4 +107,5 @@ std::shared_ptr<Texture2D> TextureResolver::ResolveDisplacement(const std::wstri
 }
 
 } // namespace gfw
+
 

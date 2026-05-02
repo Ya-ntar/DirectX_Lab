@@ -1,7 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include <memory>
-#include "framework/Framework.h"
+#include "../framework/Framework.h"
 #include "SceneConfig.h"
 #include "MeshData.h"
 
@@ -9,7 +9,7 @@ namespace gfw {
 
 class TextureResolver;
 
-// Структура для хранения загруженных подмеш-объектов
+// РЎС‚СЂСѓРєС‚СѓСЂР° РґР»СЏ С…СЂР°РЅРµРЅРёСЏ Р·Р°РіСЂСѓР¶РµРЅРЅС‹С… РїРѕРґРјРµС€-РѕР±СЉРµРєС‚РѕРІ
 struct LoadedSubmesh {
     MeshBuffers *mesh = nullptr;
     std::wstring texture_path;
@@ -46,6 +46,7 @@ private:
 };
 
 } // namespace gfw
+
 
 
 

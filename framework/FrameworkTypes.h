@@ -1,11 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include <d3d12.h>
 #include <wrl/client.h>
 #include <DirectXMath.h>
 #include <memory>
 #include "Exports.h"
-#include "../MeshData.h"
+#include "../include/MeshData.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -43,3 +43,4 @@ struct RenderObject {
     }
 };
 }
+

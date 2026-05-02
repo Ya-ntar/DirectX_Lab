@@ -1,13 +1,13 @@
-#pragma once
+﻿#pragma once
 
 #include "MeshData.h"
 #include <cstdint>
 #include <vector>
 
 namespace gfw {
-    class CubeMesh {
+    class PlaneMesh {
     public:
-        static CubeMesh CreateUnit();
+        static PlaneMesh CreateUnit();
 
         [[nodiscard]] MeshData ToMeshData() const {
             MeshData data;
@@ -29,3 +29,4 @@ namespace gfw {
         std::vector<std::uint32_t> indices_;
     };
 }
+

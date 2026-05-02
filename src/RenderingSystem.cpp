@@ -1,4 +1,4 @@
-#include "RenderingSystem.h"
+﻿#include "../include/RenderingSystem.h"
 
 #include <array>
 #include <cstring>
@@ -6,7 +6,7 @@
 #include <d3dcompiler.h>
 #include <iostream>
 
-#include "framework/FrameworkInternal.h"
+#include "../framework/FrameworkInternal.h"
 
 namespace gfw {
 namespace {
@@ -915,3 +915,4 @@ void PushLightsToRenderingSystem(const LightControlState &state, RenderingSystem
         state.spot_lights.begin() + state.enabled_spot_count));
 }
 }
+

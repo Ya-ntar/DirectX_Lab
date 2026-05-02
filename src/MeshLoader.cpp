@@ -1,5 +1,5 @@
-#define NOMINMAX
-#include "MeshLoader.h"
+﻿#define NOMINMAX
+#include "../include/MeshLoader.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -270,3 +270,4 @@ MeshData MeshLoader::LoadObj(const std::wstring &filename) {
     return {};
 }
 }
+

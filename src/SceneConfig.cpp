@@ -1,4 +1,4 @@
-#include "SceneConfig.h"
+﻿#include "../include/SceneConfig.h"
 
 namespace gfw {
 
@@ -26,5 +26,6 @@ void AddObjectsToConfig(AppConfig &config) {
 }
 
 } // namespace gfw
+
 
 

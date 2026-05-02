@@ -1,12 +1,12 @@
-#pragma once
+﻿#pragma once
 
 #include <unordered_map>
 #include <vector>
 
 #include <DirectXMath.h>
 
-#include "framework/Constants.h"
-#include "framework/Keys.h"
+#include "../framework/Constants.h"
+#include "../framework/Keys.h"
 
 namespace gfw {
 
@@ -59,3 +59,4 @@ void ApplyLightControls(InputDevice &input, const Camera &camera, float dt, Ligh
 void PushLightsToRenderingSystem(const LightControlState &state, RenderingSystem &rendering);
 
 } // namespace gfw
+

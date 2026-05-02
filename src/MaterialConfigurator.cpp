@@ -1,7 +1,7 @@
-#include "MaterialConfigurator.h"
-#include "TextureResolver.h"
-#include "SceneConfig.h"
-#include "MeshData.h"
+﻿#include "../include/MaterialConfigurator.h"
+#include "../include/TextureResolver.h"
+#include "../include/SceneConfig.h"
+#include "../include/MeshData.h"
 
 namespace gfw {
 
@@ -38,21 +38,21 @@ void MaterialConfigurator::ConfigureTexturedMaterial(
     const LoadedSubmesh &submesh,
     TextureResolver &resolver) {
 
-    // Разрешаем диффузную текстуру
+    // Р Р°Р·СЂРµС€Р°РµРј РґРёС„С„СѓР·РЅСѓСЋ С‚РµРєСЃС‚СѓСЂСѓ
     obj.texture = resolver.ResolveDiffuse(config, submesh.texture_path);
     obj.albedo = submesh.albedo;
 
-    // Определяем источник для поиска нормалей и displacement
+    // РћРїСЂРµРґРµР»СЏРµРј РёСЃС‚РѕС‡РЅРёРє РґР»СЏ РїРѕРёСЃРєР° РЅРѕСЂРјР°Р»РµР№ Рё displacement
     const std::wstring &texture_source =
         !config.texture_path.empty() ? config.texture_path : submesh.texture_path;
 
     if (!texture_source.empty()) {
-        // Пытаемся загрузить нормаль-маппинг
+        // РџС‹С‚Р°РµРјСЃСЏ Р·Р°РіСЂСѓР·РёС‚СЊ РЅРѕСЂРјР°Р»СЊ-РјР°РїРїРёРЅРі
         if (auto normal_tex = resolver.ResolveNormal(texture_source)) {
             obj.normal_texture = normal_tex;
         }
 
-        // Пытаемся загрузить displacement
+        // РџС‹С‚Р°РµРјСЃСЏ Р·Р°РіСЂСѓР·РёС‚СЊ displacement
         if (auto disp_tex = resolver.ResolveDisplacement(texture_source)) {
             obj.displacement_texture = disp_tex;
         }
@@ -77,6 +77,7 @@ void MaterialConfigurator::ConfigureRainbowMaterial(
 }
 
 } // namespace gfw
+
 
 
 

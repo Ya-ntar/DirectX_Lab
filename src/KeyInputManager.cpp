@@ -1,4 +1,4 @@
-#include "KeyInputManager.h"
+﻿#include "../include/KeyInputManager.h"
 
 namespace gfw {
 
@@ -10,7 +10,7 @@ void KeyInputManager::Update(const InputDevice &input_device) {
     for (auto &binding : bindings_) {
         bool is_pressed = input_device.IsKeyDown(binding.key);
 
-        // Срабатывает только при переходе из отпущена -> нажата
+        // РЎСЂР°Р±Р°С‚С‹РІР°РµС‚ С‚РѕР»СЊРєРѕ РїСЂРё РїРµСЂРµС…РѕРґРµ РёР· РѕС‚РїСѓС‰РµРЅР° -> РЅР°Р¶Р°С‚Р°
         if (is_pressed && !binding.was_pressed) {
             binding.callback();
         }
@@ -24,4 +24,5 @@ void KeyInputManager::Clear() {
 }
 
 } // namespace gfw
+
 

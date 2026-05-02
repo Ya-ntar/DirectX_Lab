@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <vector>
 #include <string>
@@ -53,4 +53,5 @@ struct AppConfig {
 void AddObjectsToConfig(AppConfig &config);
 
 } // namespace gfw
+
 

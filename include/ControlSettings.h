@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "GameController.h"
 
@@ -17,3 +17,4 @@ inline GameControllerSettings ToGameControllerSettings(const ControlSettings &se
 }
 
 }
+

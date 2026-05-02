@@ -1,4 +1,4 @@
-#include "CubeMesh.h"
+﻿#include "../include/CubeMesh.h"
 #include <array>
 #include <cstring>
 
@@ -60,3 +60,4 @@ namespace gfw {
         return mesh;
     }
 }
+

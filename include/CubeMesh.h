@@ -1,13 +1,13 @@
-#pragma once
+﻿#pragma once
 
 #include "MeshData.h"
 #include <cstdint>
 #include <vector>
 
 namespace gfw {
-    class PlaneMesh {
+    class CubeMesh {
     public:
-        static PlaneMesh CreateUnit();
+        static CubeMesh CreateUnit();
 
         [[nodiscard]] MeshData ToMeshData() const {
             MeshData data;

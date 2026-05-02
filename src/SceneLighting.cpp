@@ -1,8 +1,8 @@
-#include "SceneLighting.h"
+﻿#include "../include/SceneLighting.h"
 
 #include <iostream>
 
-#include "framework/InputDevice.h"
+#include "../framework/InputDevice.h"
 
 namespace gfw {
 namespace {
@@ -228,3 +228,4 @@ void ApplyLightControls(InputDevice &input, const Camera &camera, float dt, Ligh
 }
 
 } // namespace gfw
+

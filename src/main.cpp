@@ -1,9 +1,9 @@
-#include <windows.h>
+﻿#include <windows.h>
 #include <iostream>
 
-#include "AppRunner.h"
-#include "framework/Window.h"
-#include "framework/InputDevice.h"
+#include "../include/AppRunner.h"
+#include "../framework/Window.h"
+#include "../framework/InputDevice.h"
 
 using namespace gfw;
 
@@ -31,3 +31,4 @@ int main() {
         return -1;
     }
 }
+
