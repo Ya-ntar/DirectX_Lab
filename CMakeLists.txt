@@ -19,18 +19,35 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     endif ()
 endif ()
 
-add_executable(DX12Test main.cpp
-        AppRunner.h
-        AppRunner.cpp
-        SceneConfig.h
-        SceneConfig.cpp
-        ControlSettings.h
-        KeyInputManager.h
-        KeyInputManager.cpp
-        TextureResolver.h
-        TextureResolver.cpp
-        MaterialConfigurator.h
-        MaterialConfigurator.cpp
+add_executable(DX12Test
+        src/main.cpp
+        src/AppRunner.cpp
+        src/SceneConfig.cpp
+        src/KeyInputManager.cpp
+        src/TextureResolver.cpp
+        src/MaterialConfigurator.cpp
+        src/CubeMesh.cpp
+        src/PlaneMesh.cpp
+        src/MeshLoader.cpp
+        src/GBuffer.cpp
+        src/SceneLighting.cpp
+        src/RenderingSystem.cpp
+
+        include/AppRunner.h
+        include/SceneConfig.h
+        include/ControlSettings.h
+        include/KeyInputManager.h
+        include/TextureResolver.h
+        include/MaterialConfigurator.h
+        include/GameController.h
+        include/CubeMesh.h
+        include/PlaneMesh.h
+        include/MeshData.h
+        include/MeshLoader.h
+        include/GBuffer.h
+        include/SceneLighting.h
+        include/RenderingSystem.h
+
         framework/Keys.h
         framework/InputDevice.h
         framework/InputDevice.cpp
@@ -46,27 +63,19 @@ add_executable(DX12Test main.cpp
         framework/FrameworkInternal.h
         framework/DeviceManager.h
         framework/DeviceManager.cpp
-        GameController.h
+        include/GameController.h
         framework/Framework.Init.cpp
         framework/Framework.Frame.cpp
         framework/Framework.Pipeline.cpp
         framework/Framework.Resources.cpp
         framework/Framework.Render.cpp
-        CubeMesh.h
-        CubeMesh.cpp
-        PlaneMesh.h
-        PlaneMesh.cpp
-        MeshData.h
-        MeshLoader.h
-        MeshLoader.cpp
-        GBuffer.h
-        GBuffer.cpp
-        SceneLighting.h
-        SceneLighting.cpp
-        RenderingSystem.h
-        RenderingSystem.cpp
         framework/Constants.h
-        AppRunner.cpp)
+)
+
+target_include_directories(DX12Test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/framework"
+)
 
 target_compile_definitions(DX12Test PRIVATE GAMEFRAMEWORK_STATIC)
 
