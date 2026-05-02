@@ -6,6 +6,7 @@ cbuffer GeometryCB : register(b0)
     float4 albedo;
     float4 tessParams;
     float4 cameraPos;
+    float4 displacementParams;
 };
 
 struct VSOutput

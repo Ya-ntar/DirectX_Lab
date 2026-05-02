@@ -70,6 +70,7 @@ private:
         DirectX::XMFLOAT4 albedo = {1.0f, 1.0f, 1.0f, 1.0f};
         DirectX::XMFLOAT4 tess_params = {1.0f, 16.0f, 0.0f, 0.0f};
         DirectX::XMFLOAT4 camera_pos = {};
+        DirectX::XMFLOAT4 displacement_params = {0.05f, 0.11f, 0.0f, 0.0f};
     };
 
     struct PointLightGpu {

@@ -760,6 +760,7 @@ void RenderingSystem::GeometryPass(const std::vector<RenderObject> &objects) {
         cb.albedo = obj.albedo;
         cb.tess_params = {tessellation_min_, tessellation_max_, tessellation_near_dist_, tessellation_far_dist_};
         cb.camera_pos = {scene.camera.position.x, scene.camera.position.y, scene.camera.position.z, 0.0f};
+        cb.displacement_params = {displacement_scale_, normal_displacement_scale_, 0.0f, 0.0f};
         std::memcpy(geometry_cb_mapped_, &cb, sizeof(cb));
 
         cmd->SetGraphicsRootConstantBufferView(0, geometry_cb_->GetGPUVirtualAddress());

@@ -7,6 +7,8 @@ cbuffer GeometryCB : register(b0)
     row_major float4x4 proj;
     float4 albedo;
     float4 tessParams;
+    float4 cameraPos;
+    float4 displacementParams;
 };
 
 Texture2D normalMapTex : register(t1);
@@ -63,19 +65,21 @@ VSOutput DSMain(HSConstantData patch_data, const OutputPatch<VSOutput, 3> patch,
     float tiltNM = hasNM ? saturate(1.0f - nTS.z) : 0.0f;
     float lateralNM = hasNM ? length(nTS.xy) : 0.0f;
 
-    // Height from optional displacement map (neutral ~0.5)
+    // Height from optional displacement map (neutral around 0.5).
     float4 displacementSample = displacementTex.SampleLevel(baseColorSampler, interpolated_uv, 0);
     bool hasDisplacement = !(abs(displacementSample.r - 1.0f) < 0.01f && abs(displacementSample.g - 1.0f) < 0.01f && abs(displacementSample.b - 1.0f) < 0.01f);
     float hDisp = 0.0f;
     if (hasDisplacement) {
-        hDisp = (displacementSample.r - 0.5f) * tessParams.z;
+        hDisp = (displacementSample.r - 0.5f) * 2.0f * displacementParams.x;
     }
 
-    // Height from normal map — gentle curve avoids needle-like extrusions on tight edge gradients
+    // Height from normal map (from tangent-space normal z).
     float hNm = 0.0f;
-    if (hasNM && tessParams.w > 0.0f) {
-        float edgeAmt = saturate(tiltNM * 0.45f + lateralNM * 0.28f);
-        hNm = tessParams.w * edgeAmt * edgeAmt;
+    if (hasNM && displacementParams.y > 0.001f) {
+        float heightFromNormal = (nmSample.b - 0.5f) * 2.0f;
+        if (abs(heightFromNormal) > 0.01f) {
+            hNm = heightFromNormal * displacementParams.y;
+        }
     }
 
     float h = hDisp + hNm;

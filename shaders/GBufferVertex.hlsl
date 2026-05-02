@@ -5,6 +5,8 @@ cbuffer GeometryCB : register(b0)
     row_major float4x4 proj;
     float4 albedo;
     float4 tessParams;
+    float4 cameraPos;
+    float4 displacementParams;
 };
 
 struct VSInput
