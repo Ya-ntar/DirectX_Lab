@@ -35,6 +35,7 @@ struct PSOutput
 PSOutput PSMain(PSInput input)
 {
     PSOutput o;
+    bool isWireframeMode = displacementParams.z > 0.5f;
     float4 tex = baseColorTex.Sample(baseColorSampler, input.uv);
 
     float4 normalMapSample = normalMapTex.Sample(baseColorSampler, input.uv);
@@ -56,6 +57,15 @@ PSOutput PSMain(PSInput input)
 
     o.posV = float4(input.posV, 1.0f);
     o.normalV = float4(normalV, 1.0f);
-    o.albedoOut = float4(tex.rgb * albedo.rgb, 1.0f);
+
+    if (isWireframeMode)
+    {
+        // Mark wireframe pixels with alpha=0 so lighting pass can show them directly.
+        o.albedoOut = float4(0.10f, 1.00f, 0.25f, 0.0f);
+    }
+    else
+    {
+        o.albedoOut = float4(tex.rgb * albedo.rgb, 1.0f);
+    }
     return o;
 }

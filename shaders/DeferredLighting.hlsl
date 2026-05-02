@@ -95,7 +95,12 @@ float4 PSMain(VSOutput input) : SV_TARGET
     // All data from GBuffer is in VIEW-SPACE coordinates
     float3 posV = gPosition.Sample(gSampler, input.uv).xyz;  // Pixel position in view-space
     float3 normalV = normalize(gNormal.Sample(gSampler, input.uv).xyz);  // Pixel normal in view-space
-    float3 albedo = gAlbedo.Sample(gSampler, input.uv).rgb;
+    float4 albedoSample = gAlbedo.Sample(gSampler, input.uv);
+    float3 albedo = albedoSample.rgb;
+    if (albedoSample.a < 0.5f) {
+        // Wireframe marker from geometry pass: output line color directly.
+        return float4(albedo, 1.0f);
+    }
     if (dot(normalV, normalV) < 1e-5f) {
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
     }
